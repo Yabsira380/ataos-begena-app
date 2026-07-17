@@ -1,0 +1,20 @@
+{
+  "name": "አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ",
+  "short_name": "አታኦስ በገና",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120A02",
+  "theme_color": "#3E2723",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
