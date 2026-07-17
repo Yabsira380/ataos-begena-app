@@ -461,7 +461,7 @@ const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-
           }
         } catch (error) {
           setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-        }
+        };
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
