@@ -8,7 +8,7 @@ import {
   Calendar, Shield, AlertCircle
 } from 'lucide-react';
 
-// --- Supabase Client Initialization ---
+// --- Supabase Client Initialization --- 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
