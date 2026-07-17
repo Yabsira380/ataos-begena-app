@@ -41,7 +41,7 @@ const AxumObelisk = ({ className = "w-6 h-6" }) => (
 );
 
 const WatermarkBackground = () => (
-  <div className="absolute inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center overflow-hidden z-0">
+  <div className="absolute inset-0 pointer-events-none opacity-[0.04] flex items-center justify-center overflow-hidden z-0">
     <div className="grid grid-cols-2 gap-20 transform rotate-12">
       <EthiopianCross className="w-48 h-48 text-[#8B5A2B]" />
       <BegenaIcon className="w-48 h-48 text-[#8B5A2B]" />
@@ -67,7 +67,7 @@ export default function App() {
   const [academicViewType, setAcademicViewType] = useState('active');
 
   const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
-  const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'مጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+  const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
   const [selectedYear, setSelectedYear] = useState('2018');
@@ -436,43 +436,43 @@ export default function App() {
   const triggerWindowPrint = () => window.print();
 
   const askAI = async (e) => {
-  e?.preventDefault();
-  if (!aiQuery.trim()) return;
-  setIsAiLoading(true);
-  setAiResponse('');
-  const userQuestion = aiQuery;
-  setAiQuery('');
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች መረጃ፦ ${JSON.stringify(students)}`;
+    e?.preventDefault();
+    if (!aiQuery.trim()) return;
+    setIsAiLoading(true);
+    setAiResponse('');
+    const userQuestion = aiQuery;
+    setAiQuery('');
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች መረጃ፦ ${JSON.stringify(students)}`;
 
-  const payload = {
-    contents: [
-      {
-        parts: [{ text: `${systemPrompt}\n\nየተማሪው ጥያቄ፦ ${userQuestion}` }]
+    const payload = {
+      contents: [
+        {
+          parts: [{ text: `${systemPrompt}\n\nየተማሪው ጥያቄ፦ ${userQuestion}` }]
+        }
+      ]
+    };
+
+    try {
+      const res = await fetch(url, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+      });
+      const data = await res.json();
+      
+      if (data.error) {
+        setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
+      } else {
+        setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
       }
-    ]
-  };
-
-  try {
-    const res = await fetch(url, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload) 
-    });
-    const data = await res.json();
-    
-    if (data.error) {
-      setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
-    } else {
-      setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
+    } catch (error) {
+      setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
+    } glocally {
+      setIsAiLoading(false);
     }
-  } catch (error) {
-    setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-  } finally {
-    setIsAiLoading(false);
-  }
-};
+  };
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
@@ -491,13 +491,13 @@ export default function App() {
   // --- Views Renders ---
   const renderLoginScreen = () => {
     return (
-      <div className="min-h-screen bg-[#120A02] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4 relative overflow-hidden">
         <WatermarkBackground />
-        <div className="w-full max-w-md bg-[#FAF3E0] rounded-3xl p-6 sm:p-8 border-2 border-[#D2B48C] shadow-2xl relative z-10 flex flex-col items-center">
+        <div className="w-full max-w-md bg-[#FAF3E0] rounded-3xl p-6 sm:p-8 border-2 border-[#D2B48C] shadow-xl relative z-10 flex flex-col items-center">
           <div className="flex justify-center mb-3 text-[#8B5A2B]">
             <EthiopianCross className="w-14 h-14" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-[#2E1A05] font-serif text-center mb-1">
+          <h2 className="text-xl sm:text-2xl font-black text-[#3E2723] font-serif text-center mb-1">
             አታኦስ በገና ማሰልጠኛ
           </h2>
           <p className="text-xs text-[#8B5A2B] font-bold text-center mb-6">
@@ -513,7 +513,7 @@ export default function App() {
 
           <form onSubmit={handleLogin} className="w-full space-y-4">
             <div>
-              <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1">
+              <label className="block text-xs font-black text-[#3E2723] mb-1.5 ml-1">
                 ኢሜይል (Email Address)
               </label>
               <input
@@ -527,7 +527,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1">
+              <label className="block text-xs font-black text-[#3E2723] mb-1.5 ml-1">
                 የይለፍ ቃል (Password)
               </label>
               <input
@@ -566,7 +566,7 @@ export default function App() {
   const renderGlobalConfirmationModal = () => {
     if (!confirmModal.show) return null;
     return (
-      <div className="fixed inset-0 bg-[#120A02]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[300] animate-fade-in">
+      <div className="fixed inset-0 bg-[#3E2723]/60 backdrop-blur-sm flex items-center justify-center p-4 z-[300] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-3xl p-6 w-full max-w-sm border-2 border-[#D2B48C] shadow-2xl text-center relative overflow-hidden">
           <div className="absolute top-1 left-1 opacity-10"><EthiopianCross className="w-12 h-12 text-[#8B5A2B]" /></div>
           <h3 className="text-sm font-black text-[#8B5A2B] font-serif mb-2">{confirmModal.title}</h3>
@@ -592,7 +592,7 @@ export default function App() {
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
           <div className="sticky top-0 bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-5 flex items-center justify-between border-b-4 border-[#D4AF37] z-10">
             <div className="flex items-center space-x-3">
@@ -621,7 +621,7 @@ export default function App() {
               </span>
               {updatedStudentObj.examResult && <span className="font-black text-xs"> ውጤት: {updatedStudentObj.examResult}%</span>}
             </div>
-            <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#5C4033]">
+            <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
               <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
               <span className="font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{updatedStudentObj.registrationDate || 'ያልተጠቀሰ'}</span>
             </div>
@@ -631,7 +631,7 @@ export default function App() {
               <div className="absolute top-1 right-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
               <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
                 <div className="flex flex-col">
-                  <h4 className="text-xs font-extrabold text-[#5C4033] flex items-center">
+                  <h4 className="text-xs font-extrabold text-[#3E2723] flex items-center">
                     <Calendar size={14} className="mr-1 text-[#8B5A2B]"/> የ {selectedMonth} ወር መገኘት
                   </h4>
                   <p className="text-[9px] text-[#8B5A2B]/80 italic mt-0.5 font-bold"> ማስተካከያ፦ ቀኑን በመንካት መገኘትን ይለውጡ </p>
@@ -679,7 +679,7 @@ export default function App() {
               <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
               <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
                 <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
+                <div><p className="text-gray-500 mb-0.5">  አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
@@ -857,7 +857,7 @@ export default function App() {
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
           <div>
-            <h2 className="text-2xl font-black text-[#2E1A05] font-serif flex items-center gap-1.5">
+            <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
               <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> ሰላም መምህር!
             </h2>
             <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የዕለቱ የትምህርት ቤት ማጠቃለያ ሰነድ </p>
@@ -890,37 +890,37 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-colors transform hover:-translate-y-1">
+          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
             <BookOpen size={24} className="mb-2 text-[#8B5A2B]" />
             <span className="text-3xl font-black font-serif">{totalActive}</span>
-            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span>
+            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span >
           </div>
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-colors transform hover:-translate-y-1">
+          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div>
             <Award size={24} className="mb-2 text-green-700" />
             <span className="text-3xl font-black font-serif">{completedStudentsCount}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span>
           </div>
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-colors transform hover:-translate-y-1">
+          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><UserMinus size={64}/></div>
             <UserMinus size={24} className="mb-2 text-red-700" />
             <span className="text-3xl font-black font-serif">{droppedStudentsCount}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span>
           </div>
-          <div onClick={() => setActiveTab('attendance')} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-colors transform hover:-translate-y-1">
+          <div onClick={() => setActiveTab('attendance')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div>
             <CheckSquare size={24} className="mb-2 text-green-700" />
             <span className="text-3xl font-black font-serif">{totalPresentToday}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ </span>
           </div>
-          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-colors transform hover:-translate-y-1">
+          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div>
             <CreditCard size={24} className="mb-2 text-[#D4AF37]" />
             <span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span>
           </div>
-          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white/95 backdrop-blur-sm rounded-3xl p-4 text-[#2E1A05] shadow-sm border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-colors transform hover:-translate-y-1">
+          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div>
             <XCircle size={24} className="mb-2 text-red-700" />
             <span className="text-3xl font-black font-serif">{totalUnpaidCurrentMonth}</span>
@@ -933,12 +933,12 @@ export default function App() {
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
             <div className="flex items-center space-x-2 mb-3">
               <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
-              <h3 className="font-bold text-[#5C4033] text-sm font-serif flex items-center gap-1">
+              <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">
                 የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" />
               </h3>
             </div>
             <p className="text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በዚህ ዓመተ ምሕረት (<span className="font-bold text-[#8B5A2B]">{selectedYear}</span>) እና በ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር በአጠቃላይ 
+              መምህር ሆይ፣ በዚህ ዓመተ ምሕረት (<span className="font-bold text-[#8B5A2B]">{selectedYear}</span>)  እና በ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር በአጠቃላይ 
               <span className="font-bold text-[#8B5A2B]"> {totalActive} </span> ተማሪዎችን በዜማ ማሰልጠኛዎ እያስተማሩ ይገኛሉ። 
               ከነዚህም ውስጥ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች የዚህን ወር ክፍያ ገና አላጠናቀቁም። 
               ዛሬ <span className="font-bold text-green-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ያበርታዎት!
@@ -946,25 +946,25 @@ export default function App() {
           </div>
         </div>
         
-        <div className="bg-gradient-to-b from-[#3E2723] to-[#2E1A05] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#D4AF37] transform rotate-12 translate-x-4 -translate-y-4" /></div>
-          <div className="flex items-center space-x-3 mb-5 border-b border-[#5C4033] pb-4 relative z-10">
+        <div className="bg-gradient-to-b from-[#FAF3E0] to-[#F5E6D3] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-[#3E2723] relative overflow-hidden">
+          <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
+          <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
             <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
-            <h3 className="font-bold text-lg font-serif tracking-wider text-[#FFF8E7]"> የማሰልጠኛው የገንዘብ ሰነድ </h3>
+            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]"> የማሰልጠኛው የገንዘብ ሰነድ </h3>
           </div>
           <div className="space-y-4 relative z-10">
             <div className="flex justify-between items-center px-2">
-              <span className="text-[#D7CCC8] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] mr-2"></div> የሚጠበቅ ጠቅላላ ገቢ </span>
-              <span className="text-[#FFD700] font-black font-serif text-lg">{totalRevenueExpected} <span className="text-xs font-normal"> ብር </span></span>
+              <span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] mr-2"></div> የሚጠበቅ ጠቅላላ ገቢ </span>
+              <span className="text-[#8B5A2B] font-black font-serif text-lg">{totalRevenueExpected} <span className="text-xs font-normal"> ብር </span></span>
             </div>
             <div className="flex justify-between items-center px-2">
-              <span className="text-[#D7CCC8] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2"></div> የተሰበሰበ ገቢ </span>
-              <span className="text-green-400 font-black font-serif text-lg">{totalRevenueCollected} <span className="text-xs font-normal"> ብር </span></span>
+              <span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-600 mr-2"></div> የተሰበሰበ ገቢ </span>
+              <span className="text-green-700 font-black font-serif text-lg">{totalRevenueCollected} <span className="text-xs font-normal"> ብር </span></span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden">
+        <div className="bg-white rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden">
           <div className="absolute -right-4 -bottom-4 text-red-500/5 pointer-events-none"><AlertCircle size={120} /></div>
           <div className="flex items-center space-x-3 border-b border-red-100 pb-3 mb-4">
             <div className="bg-red-500 p-2 rounded-xl text-white shadow-md animate-pulse">
@@ -1018,7 +1018,7 @@ export default function App() {
   const renderRegistrationView = () => (
     <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
       <div className="text-center mb-4">
-        <h2 className="text-xl font-black text-[#2E1A05] font-serif flex items-center justify-center gap-1.5">
+        <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
           <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> የመመዝገቢያ ቃል ኪዳን
         </h2>
         <p className="text-xs text-[#8B5A2B] font-bold mt-1"> አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
@@ -1068,7 +1068,7 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስልክ </label><input type="tel" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactPhone} onChange={(e) => setNewStudent({...newStudent, emergencyContactPhone: e.target.value})} /></div>
             </div>
             <div className="pt-2">
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1"> የስራ ሁኔታ </label>
+              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1">  የስራ ሁኔታ </label>
               <div className="flex space-x-6 px-2">
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ተማሪ" checked={newStudent.workStatus === 'ተማሪ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ተማሪ </span></label>
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ሰራተኛ" checked={newStudent.workStatus === 'ሰራተኛ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ሰራተኛ </span></label>
@@ -1117,7 +1117,7 @@ export default function App() {
             </div>
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
               <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ወርሃዊ መዋጮ (ብር)</label>
-              <input type="number" required placeholder="500" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#2E1A05]" value={newStudent.paymentAmount} onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} />
+              <input type="number" required placeholder="500" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.paymentAmount} onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} />
             </div>
           </div>
         </div>
@@ -1135,7 +1135,7 @@ export default function App() {
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
           <div>
-            <h2 className="text-xl font-black text-[#2E1A05] font-serif"> የተማሪዎች ሁኔታ መዝገብ </h2>
+            <h2 className="text-xl font-black text-[#3E2723] font-serif"> የተማሪዎች ሁኔታ መዝገብ </h2>
             <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የፈተና ውጤት እና ድርጊቶች </p>
           </div>
           <button onClick={() => setReportConfig({show: true, type: 'academic', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#8B5A2B] text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-[#5C4033] border border-[#D4AF37] transition-colors">
@@ -1156,13 +1156,13 @@ export default function App() {
 
         <div className="space-y-4">
           {filteredInfoStudents.map(student => (
-            <div key={student.id} className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 border-2 border-[#EADDCA] shadow-sm">
+            <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
               <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
                 <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
                   {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={18} className="text-[#8B5A2B]"/>}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-[#2E1A05] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
+                  <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
                   <p className="text-[10px] text-gray-500 font-bold mt-0.5">{student.instrumentType} | መዝገብ፦ {student.registrationDate || '-'}</p>
                 </div>
               </div>
@@ -1194,15 +1194,15 @@ export default function App() {
                 <div className="flex gap-2">
                   {student.status === 'active' ? (
                     <>
-                      <button onClick={() => setStudentStatusWithConfirm(student, 'completed')} className="flex-1 bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
+                      <button onClick={() => setStudentStatusWithConfirm(student, 'completed')} className="flex-1 bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border border-[#A5D6A7] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
                         <Award size={12}/> ምረቅ
                       </button>
-                      <button onClick={() => setStudentStatusWithConfirm(student, 'dropped')} className="flex-1 bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
+                      <button onClick={() => setStudentStatusWithConfirm(student, 'dropped')} className="flex-1 bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border border-[#EF9A9A] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
                         <UserMinus size={12}/> አቋርጧል
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => setStudentStatusWithConfirm(student, 'active')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
+                    <button onClick={() => setStudentStatusWithConfirm(student, 'active')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 border border border-gray-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
                       <XCircle size={14}/> ወደ ትምህርት መልስ
                     </button>
                   )}
@@ -1225,7 +1225,7 @@ export default function App() {
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
           <div>
-            <h2 className="text-xl font-black text-[#2E1A05] font-serif"> መገኘት መቆጣጠሪያ </h2>
+            <h2 className="text-xl font-black text-[#3E2723] font-serif"> መገኘት መቆጣጠሪያ </h2>
             <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የተማሪዎች ዕለታዊ ክትትል መመዝገቢያ </p>
           </div>
           <button onClick={() => setReportConfig({show: true, type: 'attendance', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#8B5A2B] text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-[#5C4033] border border-[#D4AF37] transition-colors">
@@ -1250,23 +1250,23 @@ export default function App() {
 
         <div className="relative mb-2">
           <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={attendanceSearch} onChange={(e) => setAttendanceSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white/95 border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
+          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={attendanceSearch} onChange={(e) => setAttendanceSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
         </div>
 
         <div className="space-y-3">
           {filteredStudents.map(student => {
             const isPresent = student.attendance?.[currentPeriodKey]?.[selectedDay] || false;
             return (
-              <div key={student.id} className="flex items-center justify-between p-4 bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border-2 border-[#EADDCA]">
+              <div key={student.id} className="flex items-center justify-between p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-4 cursor-pointer">
                   <div className="relative">
                     <div className="w-12 h-12 bg-[#F5E6D3] rounded-2xl flex items-center justify-center border-2 border-[#D2B48C] overflow-hidden">
                       {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={20} className="text-[#8B5A2B]"/>}
                     </div>
-                    <div className="absolute -bottom-1 -right-2 bg-[#2E1A05] border border-[#D4AF37] text-[#FAF3E0] text-[9px] font-black px-1.5 py-0.5 rounded shadow">#{student.studentNo}</div>
+                    <div className="absolute -bottom-1 -right-2 bg-[#3E2723] border border-[#D4AF37] text-[#FAF3E0] text-[9px] font-black px-1.5 py-0.5 rounded shadow">#{student.studentNo}</div>
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-[#2E1A05] text-sm">{student.name}</h3>
+                    <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name}</h3>
                     <p className="text-[10px] text-gray-500 font-bold">{student.chosenDay} | {student.chosenTime}</p>
                   </div>
                 </div>
@@ -1291,7 +1291,7 @@ export default function App() {
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
           <div>
-            <h2 className="text-xl font-black text-[#2E1A05] font-serif"> የክፍያ ቁጥጥር መዝገብ </h2>
+            <h2 className="text-xl font-black text-[#3E2723] font-serif"> የክፍያ ቁጥጥር መዝገብ </h2>
             <p className="text-xs text-[#8B5A2B] font-bold mt-1"> ወርሃዊ መዋጮ መከታተያ </p>
           </div>
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors">
@@ -1312,19 +1312,19 @@ export default function App() {
 
         <div className="relative mb-2">
           <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white/95 border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
+          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
         </div>
         
         <div className="space-y-4">
           {filteredPaymentStudents.map(student => {
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             return (
-              <div key={student.id} className="flex flex-col p-4 bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border-2 border-[#EADDCA]">
+              <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center space-x-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : 'bg-[#FFEBEE] border-red-300'}`}><CreditCard size={20} className={isPaidForMonth ? 'text-[#2E7D32]' : 'text-[#C62828]'} /></div>
                     <div>
-                      <h3 className="font-extrabold text-[#2E1A05] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
+                      <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">{student.instrumentType} | {student.paymentAmount} ብር </p>
                       <p className="text-[9px] text-gray-400">መዝገብ፦ {student.registrationDate || '-'}</p>
                     </div>
@@ -1348,7 +1348,7 @@ export default function App() {
   const renderAiAssistantView = () => (
     <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
       <div className="text-center mb-4">
-        <h2 className="text-xl font-black text-[#2E1A05] font-serif flex items-center justify-center gap-1.5">
+        <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
           <Sparkles className="w-5 h-5 text-[#8B5A2B]" /> የመረጃ መንፈሳዊ ረዳት 
         </h2>
         <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የሰው ሠራሽ አስተውሎት አጋዥ </p>
@@ -1360,7 +1360,7 @@ export default function App() {
         </p>
 
         {aiResponse && (
-          <div className="bg-white p-4 rounded-2xl border border-[#D2B48C] text-xs leading-relaxed text-[#3E2723] font-medium max-h-60 overflow-y-auto">
+          <div className="bg-white p-4 rounded-2xl border border-[#D2B48C] text-xs leading-relaxed text-[#3E2723] font-medium max-h-60 overflow-y-auto shadow-inner">
             {aiResponse}
           </div>
         )}
@@ -1373,7 +1373,7 @@ export default function App() {
         )}
 
         <form onSubmit={askAI} className="relative mt-2">
-          <input type="text" value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} placeholder="ጥያቄዎን ለመጻፍ እዚህ ይንኩ..." className="w-full pl-5 pr-14 py-4 bg-white/95 rounded-full border-2 border-[#D2B48C] shadow-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" />
+          <input type="text" value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} placeholder="ጥያቄዎን ለመጻፍ እዚህ ይንኩ..." className="w-full pl-5 pr-14 py-4 bg-white rounded-full border-2 border-[#D2B48C] shadow-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" />
           <button type="submit" disabled={isAiLoading || !aiQuery.trim()} className="absolute right-2 top-2 bottom-2 w-10 h-10 bg-[#8B5A2B] text-white rounded-full flex items-center justify-center hover:bg-[#5C4033] disabled:opacity-50 shadow-md">
             <Send size={16} />
           </button>
@@ -1385,9 +1385,9 @@ export default function App() {
   // --- Auth Loading Screen ---
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#120A02] flex flex-col items-center justify-center text-white p-4">
-        <Loader2 className="animate-spin mb-4 text-[#D4AF37]" size={40} />
-        <p className="text-xs font-bold text-[#D4AF37]">የደህንነት ማረጋገጫ በመካሄድ ላይ ነው...</p>
+      <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
+        <Loader2 className="animate-spin mb-4 text-[#8B5A2B]" size={40} />
+        <p className="text-xs font-bold text-[#8B5A2B]">የደህንነት ማረጋገጫ በመካሄድ ላይ ነው...</p>
       </div>
     );
   }
@@ -1400,9 +1400,9 @@ export default function App() {
   // --- Main App Fetching Loader ---
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#120A02] flex flex-col items-center justify-center text-white p-4">
-        <Loader2 className="animate-spin mb-4 text-[#D4AF37]" size={40} />
-        <p className="text-xs font-bold text-[#D4AF37]">የተማሪዎች መረጃ ከኦንላይን ዳታቤዝ በመጫን ላይ ነው...</p>
+      <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
+        <Loader2 className="animate-spin mb-4 text-[#8B5A2B]" size={40} />
+        <p className="text-xs font-bold text-[#8B5A2B]">የተማሪዎች መረጃ ከኦንላይን ዳታቤዝ በመጫን ላይ ነው...</p>
       </div>
     );
   }
@@ -1414,7 +1414,7 @@ export default function App() {
       {renderReportModal()}
 
       {/* 2. MAIN APP COMPONENT (Completely hidden on printing) */}
-      <div className="app-ui hide-on-print min-h-screen flex flex-col pb-24 relative overflow-x-hidden">
+      <div className="app-ui hide-on-print min-h-screen bg-[#FAF6EE] flex flex-col pb-24 relative overflow-x-hidden">
         
         {/* Global Nav Bar Header */}
         <header className="bg-[#3E2723] text-white px-4 py-3 flex justify-between items-center border-b-4 border-[#D4AF37] shadow-md relative z-20">
@@ -1450,7 +1450,7 @@ export default function App() {
         </main>
 
         {/* Bottom Floating Navigation Menu Bar */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#3E2723]/95 backdrop-blur-md border-t-4 border-[#D4AF37] p-3 flex justify-around items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] p-3 flex justify-around items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
           {[
             { id: 'dashboard', icon: Home, label: 'ዋና ገጽ' },
             { id: 'students', icon: UserPlus, label: 'መዝግብ' },
@@ -1466,11 +1466,11 @@ export default function App() {
                 activeTab === item.id 
                   ? item.special 
                     ? 'bg-gradient-to-b from-[#D4AF37] to-[#8B5A2B] text-white shadow-lg border-2 border-[#FAF3E0] transform -translate-y-2' 
-                    : 'text-[#D4AF37]' 
-                  : 'text-[#BCAAA4] hover:text-[#8D6E63]'
+                    : 'text-[#8B5A2B]' 
+                  : 'text-[#8D6E63] hover:text-[#5C4033]'
               }`}
             >
-              {activeTab === item.id && !item.special && <div className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />}
+              {activeTab === item.id && !item.special && <div className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-[#8B5A2B]" />}
               <item.icon size={item.special ? 20 : 18} />
               {activeTab === item.id && !item.special && <span className="text-[8px] font-black mt-0.5">{item.label}</span>}
             </button>
@@ -1481,7 +1481,7 @@ export default function App() {
       {/* Global CSS Layout Overrides and Printing Config */}
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Ethiopic:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Serif Ethiopic', serif; margin: 0; padding: 0; background-color: #120A02; min-height: 100vh; }
+        body { font-family: 'Noto Serif Ethiopic', serif; margin: 0; padding: 0; background-color: #FAF6EE; min-height: 100vh; color: #3E2723; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
