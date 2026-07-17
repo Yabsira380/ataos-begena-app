@@ -436,32 +436,43 @@ export default function App() {
   const triggerWindowPrint = () => window.print();
 
   const askAI = async (e) => {
-    e?.preventDefault();
-    if (!aiQuery.trim()) return;
-    setIsAiLoading(true);
-    setAiResponse('');
-    const userQuestion = aiQuery;
-    setAiQuery('');
-   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const systemPrompt = `
-      አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የግል AI ረዳት ነህ።
-      መምህሩን በከፍተኛ አክብሮት፣ ትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል።
-      የተማሪዎች መረጃ: ${JSON.stringify(students)}. አሁን የተመረጠው ዓ.ም: ${selectedYear} እና ወር: ${selectedMonth}።
-    `;
-    const payload = { contents: [{ parts: [{ text: userQuestion }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+  e?.preventDefault();
+  if (!aiQuery.trim()) return;
+  setIsAiLoading(true);
+  setAiResponse('');
+  const userQuestion = aiQuery;
+  setAiQuery('');
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች መረጃ፦ ${JSON.stringify(students)}`;
+
+  const payload = {
+    contents: [
+      {
+        parts: [{ text: `${systemPrompt}\n\nየተማሪው ጥያቄ፦ ${userQuestion}` }]
+      }
+    ]
+  };
+
   try {
-          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-          const data = await res.json();
-          
-          if (data.error) {
-            setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
-          } else {
-            setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
-          }
-        } catch (error) {
-          setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-        };
+    const res = await fetch(url, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(payload) 
+    });
+    const data = await res.json();
+    
+    if (data.error) {
+      setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
+    } else {
+      setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
+    }
+  } catch (error) {
+    setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
+  } finally {
+    setIsAiLoading(false);
+  }
+};
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
