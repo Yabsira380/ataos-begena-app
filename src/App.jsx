@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle
+  Calendar, Shield, AlertCirclea
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -442,9 +442,8 @@ export default function App() {
     setAiResponse('');
     const userQuestion = aiQuery;
     setAiQuery('');
-    const apiKey = "";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-
+   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     const systemPrompt = `
       አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የግል AI ረዳት ነህ።
       መምህሩን በከፍተኛ አክብሮት፣ ትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል።
