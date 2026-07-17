@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCirclea
+  Calendar, Shield, AlertCircle
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
