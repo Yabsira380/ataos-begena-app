@@ -450,15 +450,18 @@ const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-
       የተማሪዎች መረጃ: ${JSON.stringify(students)}. አሁን የተመረጠው ዓ.ም: ${selectedYear} እና ወር: ${selectedMonth}።
     `;
     const payload = { contents: [{ parts: [{ text: userQuestion }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-    try {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
-    } catch (error) {
-      setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-    }
-    setIsAiLoading(false);
-  };
+  try {
+          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await res.json();
+          
+          if (data.error) {
+            setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
+          } else {
+            setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
+          }
+        } catch (error) {
+          setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
+        }
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
