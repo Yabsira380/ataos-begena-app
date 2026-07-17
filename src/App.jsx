@@ -469,7 +469,7 @@ export default function App() {
       }
     } catch (error) {
       setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-    } glocally {
+    } finally {
       setIsAiLoading(false);
     }
   };
