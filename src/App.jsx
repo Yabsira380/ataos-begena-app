@@ -11,9 +11,11 @@ import {
 // --- Supabase Client Initialization --- 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 console.log("Supabase URL is:", supabaseUrl);
 console.log("Supabase Key is:", supabaseAnonKey);
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
   <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
     <path d="M 45 10 L 55 10 L 55 35 L 80 35 L 80 45 L 55 45 L 55 55 L 70 55 L 75 50 L 85 60 L 75 70 L 70 65 L 55 65 L 55 90 L 45 90 L 45 65 L 30 65 L 25 70 L 15 60 L 25 50 L 30 55 L 45 55 L 45 45 L 20 45 L 20 35 L 45 35 Z" />
