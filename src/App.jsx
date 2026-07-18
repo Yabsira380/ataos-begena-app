@@ -67,7 +67,7 @@ export default function App() {
   const [academicViewType, setAcademicViewType] = useState('active');
 
   const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
-  const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+  const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'مጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
   const [selectedYear, setSelectedYear] = useState('2018');
@@ -206,7 +206,7 @@ export default function App() {
         .eq('id', studentId);
 
       if (error) throw error;
-      fetchStudents();
+      await fetchStudents(); // አውቶማቲካሊ ዳታቤዙ እስኪጫን ይጠብቃል
       return true;
     } catch (err) {
       showNotification('ማስተካከያው አልተሳካም!', 'error');
@@ -262,7 +262,6 @@ export default function App() {
       return;
     }
     
-    // በስህተት ዜሮዎቹ ቢጠፉ እንኳ፣ ቁጥር ብቻ ከሆነ አውቶማቲካሊ 3 ዲጂት እንዲሆን ማስተካከል
     if (/^\d+$/.test(newNo)) {
       newNo = String(parseInt(newNo, 10)).padStart(3, '0');
     }
@@ -272,7 +271,6 @@ export default function App() {
       return;
     }
     
-    // ሌላ ተማሪ ይህንን ቁጥር ይዞት ከሆነ መቆጣጠሪያ
     const isDuplicate = students.some(s => s.id !== student.id && s.studentNo === newNo);
     if (isDuplicate) {
       showNotification("ይህ መለያ ቁጥር በሌላ ተማሪ ተይዟል! እባክዎ ሌላ ይሞክሩ።", "error");
@@ -285,6 +283,8 @@ export default function App() {
       async () => {
         const success = await updateStudentInDb(student.id, { student_no: newNo });
         if (success) {
+          // ሞዳሉ ላይ ያለው መረጃም አብሮ በቅጽበት እንዲቀየር እናደርጋለን
+          setSelectedStudentProfile(prev => prev ? { ...prev, studentNo: newNo } : null);
           showNotification("መለያ ቁጥሩ በተሳካ ሁኔታ ተስተካክሏል!", "success");
           setEditStudentNoState({ isEditing: false, value: '' });
         }
@@ -680,7 +680,7 @@ export default function App() {
                   updatedStudentObj.status === 'dropped' ? <> ትምህርቱን ያቋረጠ </> :
                     <> በመማር ላይ ያለ (Active)</>}
               </span>
-              {updatedStudentObj.examResult && <span className="font-black text-xs"> ውጤት: {updatedStudentObj.examResult}%</span>}
+              {updatedStudentObj.examResult && <span className="font-black text-xs">  ውጤት: {updatedStudentObj.examResult}%</span>}
             </div>
             <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
               <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
@@ -737,10 +737,10 @@ export default function App() {
               </div>
             </div>
             <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-              <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
+              <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/>  መንፈሳዊ ህይወት መረጃ </h4>
               <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
                 <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5">  አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
+                <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
@@ -758,7 +758,7 @@ export default function App() {
                     {updatedStudentObj.payments[currentPeriodKey] ? (
                       <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
                     ) : (
-                      <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
+                      <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded">  አልከፈለም ✗ </span>
                     )}
                   </div>
                 )}
@@ -807,7 +807,7 @@ export default function App() {
 
           <div className="flex gap-2 justify-end">
             <button onClick={copyReportToClipboard} className="bg-[#8B5A2B] hover:bg-[#5C4033] px-3 py-2 rounded-lg text-xs font-bold flex items-center"><Copy size={14} className="mr-1"/> ኮፒ </button>
-            <button onClick={triggerWindowPrint} className="bg-[#006400] hover:bg-green-800 px-4 py-2 rounded-lg text-xs font-bold flex items-center"><Printer size={16} className="mr-1"/> አትም </button>
+            <button onClick={triggerWindowPrint} className="bg-[#006400] hover:bg-green-800 px-4 py-2 rounded-lg text-xs font-bold flex items-center"><Printer size={16} className="mr-1"/>  አትም </button>
             <button onClick={() => setReportConfig({show: false, type: 'general', statusFilter: 'all'})} className="bg-red-600 px-3 py-2 rounded-lg ml-2"><X size={16} /></button>
           </div>
         </div>
@@ -872,7 +872,7 @@ export default function App() {
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
                         <td className="border border-gray-300 p-2 font-black">
                           {s.status === 'active' ? (
-                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : <span className="text-red-700"> አልከፈለም </span>
+                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : <span className="text-red-700">  አልከፈለም </span>
                           ) : (
                             <span className="text-gray-400 italic">አይመለከትም</span>
                           )}
@@ -955,7 +955,7 @@ export default function App() {
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
             <BookOpen size={24} className="mb-2 text-[#8B5A2B]" />
             <span className="text-3xl font-black font-serif">{totalActive}</span>
-            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span >
+            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span>
           </div>
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div>
@@ -1011,7 +1011,7 @@ export default function App() {
           <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
           <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
             <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
-            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]"> የማሰልጠኛው የገንዘብ ሰነድ </h3>
+            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]">  የማሰልጠኛው የገንዘብ ሰነድ </h3>
           </div>
           <div className="space-y-4 relative z-10">
             <div className="flex justify-between items-center px-2">
@@ -1082,7 +1082,7 @@ export default function App() {
         <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
           <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> የመመዝገቢያ ቃል ኪዳን
         </h2>
-        <p className="text-xs text-[#8B5A2B] font-bold mt-1"> አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
+        <p className="text-xs text-[#8B5A2B] font-bold mt-1">  አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
       </div>
 
       <form onSubmit={handleAddStudentSubmit} className="space-y-4">
@@ -1121,7 +1121,7 @@ export default function App() {
               <p className="text-[10px] text-gray-500 mt-1 pl-1">ይህ ቀን የተማሪውን የወር ክፍያ ማሳሰቢያ ዑደት ለማስላት በቁልፍነት ያገለግላል።</p>
             </div>
 
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
+            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1">  ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
             <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የክርስትና ስም </label><input type="text" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.christianName} onChange={(e) => setNewStudent({...newStudent, christianName: e.target.value})} /></div>
             <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ስልክ ቁጥር <span className="text-red-500">*</span></label><input type="tel" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.phone} onChange={(e) => setNewStudent({...newStudent, phone: e.target.value})} /></div>
             <div className="grid grid-cols-2 gap-3 pt-2">
@@ -1129,7 +1129,7 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስልክ </label><input type="tel" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactPhone} onChange={(e) => setNewStudent({...newStudent, emergencyContactPhone: e.target.value})} /></div>
             </div>
             <div className="pt-2">
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1">  የስራ ሁኔታ </label>
+              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1"> የስራ ሁኔታ </label>
               <div className="flex space-x-6 px-2">
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ተማሪ" checked={newStudent.workStatus === 'ተማሪ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ተማሪ </span></label>
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ሰራተኛ" checked={newStudent.workStatus === 'ሰራተኛ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ሰራተኛ </span></label>
@@ -1150,7 +1150,7 @@ export default function App() {
           <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><BookOpen size={16} className="mr-2 text-[#8B5A2B]"/> የዜማ ትምህርት ምርጫ </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center"><Music size={12} className="mr-1"/> የዜማ መሳሪያ አይነት </label>
+              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center"><Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት </label>
               <div className="relative">
                 <select 
                   value={newStudent.instrumentType} 
@@ -1205,7 +1205,7 @@ export default function App() {
         </div>
 
         <div className="flex bg-[#FAF3E0] p-1.5 rounded-2xl border-2 border-[#D2B48C] gap-1">
-          <button onClick={() => setAcademicViewType('active')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'active' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> በመማር ላይ </button>
+          <button onClick={() => setAcademicViewType('active')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'active' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}>  በመማር ላይ </button>
           <button onClick={() => setAcademicViewType('completed')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'completed' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> ያጠናቀቁ </button>
           <button onClick={() => setAcademicViewType('dropped')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'dropped' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> ያቋረጡ </button>
         </div>
@@ -1353,7 +1353,7 @@ export default function App() {
         <div className="flex justify-between items-center mb-2">
           <div>
             <h2 className="text-xl font-black text-[#3E2723] font-serif"> የክፍያ ቁጥጥር መዝገብ </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> ወርሃዊ መዋጮ መከታተያ </p>
+            <p className="text-xs text-[#8B5A2B] font-bold mt-1">  ወርሃዊ መዋጮ መከታተያ </p>
           </div>
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors">
             <Printer size={14} /> ሪፖርት
@@ -1412,7 +1412,7 @@ export default function App() {
         <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
           <Sparkles className="w-5 h-5 text-[#8B5A2B]" /> የመረጃ መንፈሳዊ ረዳት 
         </h2>
-        <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የሰው ሠራሽ አስተውሎት አጋዥ </p>
+        <p className="text-xs text-[#8B5A2B] font-bold mt-1">  የሰው ሠራሽ አስተውሎት አጋዥ </p>
       </div>
 
       <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C] space-y-4">
