@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle
+  Calendar, Shield, AlertCircle, Edit
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -85,6 +85,7 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
+  const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [tempScores, setTempScores] = useState({});
   const [reportConfig, setReportConfig] = useState({
     show: false,
@@ -250,9 +251,45 @@ export default function App() {
 
   const generateNextStudentNo = () => {
     if (!students || students.length === 0) return '001';
-    // እዚህ ጋር , 10 በመጨመር ጃቫስክሪፕት ቁጥሩን በስህተት ወደ Octal (8) እንዳይቀይረውና እንዳይቆልፈው ተስተካክሏል
     const maxNo = Math.max(...students.map(s => parseInt(s.studentNo || '0', 10)).filter(n => !isNaN(n)));
     return String(maxNo === -Infinity ? 1 : maxNo + 1).padStart(3, '0');
+  };
+
+  const handleStudentNoSave = async (student) => {
+    let newNo = editStudentNoState.value.trim();
+    if (!newNo) {
+      showNotification("እባክዎ ትክክለኛ መለያ ቁጥር ያስገቡ", "error");
+      return;
+    }
+    
+    // በስህተት ዜሮዎቹ ቢጠፉ እንኳ፣ ቁጥር ብቻ ከሆነ አውቶማቲካሊ 3 ዲጂት እንዲሆን ማስተካከል
+    if (/^\d+$/.test(newNo)) {
+      newNo = String(parseInt(newNo, 10)).padStart(3, '0');
+    }
+
+    if (newNo === student.studentNo) {
+      setEditStudentNoState({ isEditing: false, value: '' });
+      return;
+    }
+    
+    // ሌላ ተማሪ ይህንን ቁጥር ይዞት ከሆነ መቆጣጠሪያ
+    const isDuplicate = students.some(s => s.id !== student.id && s.studentNo === newNo);
+    if (isDuplicate) {
+      showNotification("ይህ መለያ ቁጥር በሌላ ተማሪ ተይዟል! እባክዎ ሌላ ይሞክሩ።", "error");
+      return;
+    }
+
+    triggerConfirmation(
+      `የተማሪውን መለያ ቁጥር ከ #${student.studentNo} ወደ #${newNo} ለመቀየር እርግጠኛ ነዎት?`,
+      'የመለያ ቁጥር ማስተካከያ',
+      async () => {
+        const success = await updateStudentInDb(student.id, { student_no: newNo });
+        if (success) {
+          showNotification("መለያ ቁጥሩ በተሳካ ሁኔታ ተስተካክሏል!", "success");
+          setEditStudentNoState({ isEditing: false, value: '' });
+        }
+      }
+    );
   };
 
   const handleAddStudentSubmit = (e) => {
@@ -319,6 +356,7 @@ export default function App() {
           fetchStudents();
           if (selectedStudentProfile?.id === student.id) {
             setSelectedStudentProfile(null);
+            setEditStudentNoState({ isEditing: false, value: '' });
           }
         }
       }
@@ -596,20 +634,42 @@ export default function App() {
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
           <div className="sticky top-0 bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-5 flex items-center justify-between border-b-4 border-[#D4AF37] z-10">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 overflow-hidden border border-white/20">
+            <div className="flex items-center space-x-3 w-full">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 overflow-hidden border border-white/20 flex-shrink-0">
                 {updatedStudentObj.photo ? (
                   <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>
                 )}
               </div>
-              <div>
-                <h3 className="font-extrabold text-sm sm:text-base font-serif text-[#FFF8E7]">{updatedStudentObj.name}</h3>
-                <p className="text-[10px] text-gray-300 font-bold mt-0.5"> ክ.ስ: {updatedStudentObj.christianName || '-'} | መ.ቁ: #{updatedStudentObj.studentNo}</p>
+              <div className="flex-1">
+                <h3 className="font-extrabold text-sm sm:text-base font-serif text-[#FFF8E7] truncate">{updatedStudentObj.name}</h3>
+                <div className="text-[10px] text-gray-300 font-bold mt-0.5 flex flex-wrap items-center gap-1">
+                  <span>ክ.ስ: {updatedStudentObj.christianName || '-'} | መ.ቁ: </span>
+                  {editStudentNoState.isEditing ? (
+                    <div className="flex items-center gap-1 bg-white/20 p-0.5 rounded">
+                      <input 
+                        type="text" 
+                        value={editStudentNoState.value} 
+                        onChange={e => setEditStudentNoState({...editStudentNoState, value: e.target.value})}
+                        className="text-[#3E2723] px-1 py-0.5 rounded w-14 text-[10px] font-black focus:outline-none"
+                        autoFocus
+                      />
+                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors" title="አስቀምጥ"><Check size={10}/></button>
+                      <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors" title="ተወው"><X size={10}/></button>
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">
+                      #{updatedStudentObj.studentNo}
+                      <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1" title="መለያ ቁጥር አስተካክል">
+                        <Edit size={10}/>
+                      </button>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <button onClick={() => setSelectedStudentProfile(null)} className="p-1.5 bg-[#FAF3E0]/10 hover:bg-white/20 rounded-full text-[#D4AF37]">
+            <button onClick={() => { setSelectedStudentProfile(null); setEditStudentNoState({isEditing: false, value: ''}); }} className="p-1.5 bg-[#FAF3E0]/10 hover:bg-white/20 rounded-full text-[#D4AF37] self-start ml-2 flex-shrink-0">
               <X size={18} />
             </button>
           </div>
@@ -895,7 +955,7 @@ export default function App() {
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
             <BookOpen size={24} className="mb-2 text-[#8B5A2B]" />
             <span className="text-3xl font-black font-serif">{totalActive}</span>
-            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span>
+            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span >
           </div>
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div>
@@ -1318,7 +1378,7 @@ export default function App() {
         
         <div className="space-y-4">
           {filteredPaymentStudents.map(student => {
-            const isPaid ForMonth = student.payments[currentPeriodKey] || false;
+            const isPaidForMonth = student.payments[currentPeriodKey] || false;
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
