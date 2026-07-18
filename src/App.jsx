@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle, Edit, Save, ListMusic
+  Calendar, Shield, AlertCircle, Edit, Save
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -85,14 +85,11 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
-  // --- Profile Editing & Lesson States ---
+  // --- Profile Editing States ---
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({});
-  
-  // New State for Lesson Plans
-  const [selectedLessonInstrument, setSelectedLessonInstrument] = useState('በገና');
 
   const [tempScores, setTempScores] = useState({});
   const [reportConfig, setReportConfig] = useState({
@@ -112,35 +109,6 @@ export default function App() {
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
-
-  // --- Curriculum/Lesson Plan Data (Hardcoded Guide for Teacher) ---
-  const lessonPlans = {
-    'በገና': [
-      { week: '1ኛ - 4ኛ ሳምንት (ጀማሪ)', title: 'መሰረታዊ የበገና ትምህርት', items: ['የበገና ክፍሎች እና መንፈሳዊ ትርጉማቸው (12ቱ አውታሮች)', 'የጣት አቀማመጥ፣ አነሳስ እና ትክክለኛ አደራደር', 'የድምፅ ቅኝት (Tuning)', 'የመጀመሪያ መዝሙር፡ "አባታችን ሆይ"'] },
-      { week: '5ኛ - 8ኛ ሳምንት (መካከለኛ)', title: 'የመዝሙር እና የዜማ ጥናት 1', items: ['መዝሙር፡ "ማርያም ፊደል ናት"', 'መዝሙር፡ "ስምሽን ጠርቼ"', 'ከድምፅ ጋር አብሮ መዘመር (ማዋሃድ)', 'የጣት ማሸጋገር ጥበብ'] },
-      { week: '9ኛ - 12ኛ ሳምንት (ከፍተኛ)', title: 'የመዝሙር ጥናት 2 እና ማጠቃለያ', items: ['መዝሙር፡ "ክነፈ ርግብ"', 'መዝሙር፡ "ስለማይነገር ስጦታው"', 'የበገና ዜማዎችን በራስ መለማመድ እና ማውጣት', 'የምረቃ ዝግጅት'] }
-    ],
-    'ክራር': [
-      { week: '1ኛ - 4ኛ ሳምንት (ጀማሪ)', title: 'የክራር መሰረት እና ቅኝት', items: ['የክራር ክፍሎች እና የክር አወጣጠር', 'ጣት ማሟሸት እና ቀላል ድርደራ', 'ዋና ዋና ቅኝቶች (ትዝታ፣ ባቲ)'] },
-      { week: '5ኛ - 8ኛ ሳምንት (መካከለኛ)', title: 'የአምልኮ መዝሙራት', items: ['የአምባሰል እና የአንቺሆዬ ቅኝቶች', 'መዝሙር፡ "እመቤቴ ማርያም"', 'መዝሙር፡ "ልዘምርልሽ በክራሬ"'] },
-      { week: '9ኛ - 12ኛ ሳምንት (ከፍተኛ)', title: 'የዜማ ማጀብ ጥበብ', items: ['የአምልኮ መዝሙራት አጀባ (Chords)', 'ከሌሎች መሳሪያዎች (ከበሮ፣ ዋሽንት) ጋር ማቀናጀት', 'የምረቃ መዝሙር ጥናት'] }
-    ],
-    'ከበሮ': [
-      { week: '1ኛ - 4ኛ ሳምንት (ጀማሪ)', title: 'የከበሮ አመታት መሰረት', items: ['የከበሮ አያያዝ፣ አቋቋም እና ክብር', 'የከበሮ ድምፆች መለየት (ድምብ፣ ችራ)', 'ቀላል የከበሮ አመታት (1ኛ እና 2ኛ አመታት)'] },
-      { week: '5ኛ - 8ኛ ሳምንት (መካከለኛ)', title: 'ከዜማ ጋር ማዋሃድ', items: ['3ኛ አመታት እና የዘማሪ አጀባ', 'ከመዘምራን ጋር አብሮ መምታት', 'የማህሌት ከበሮ አገባብ (መግቢያ)'] },
-      { week: '9ኛ - 12ኛ ሳምንት (ከፍተኛ)', title: 'የከበሮ ሽብሸባ እና በዓላት', items: ['የበዓላት የከበሮ አመታት (ሆረ፣ ቁም)', 'ውስብስብ የዜማ ሽግግሮች ላይ መምታት', 'የሽብሸባ እና የዝማሬ ቅንብር'] }
-    ],
-    'ማሲንቆ': [
-      { week: '1ኛ - 4ኛ ሳምንት (ጀማሪ)', title: 'የማሲንቆ መሰረት', items: ['ማሲንቆ አያያዝ እና ቀስት አሳሳብ', 'ንፁህ ድምፅ ማውጣት እና ጣት አቀማመጥ', 'ቀላል የትዝታ ቅኝት ድምፆች'] },
-      { week: '5ኛ - 8ኛ ሳምንት (መካከለኛ)', title: 'የመዝሙር እና የዜማ ጥናት', items: ['ቀላል የንስሃ መዝሙራት', 'መዝሙር፡ "አቤቱ ማረን"', 'የድምፅ ቅላፄዎችን መለማመድ'] },
-      { week: '9ኛ - 12ኛ ሳምንት (ከፍተኛ)', title: 'የዜማ ማጀብ', items: ['ከዘማሪ ጋር ድምፅ ማዋሃድ', 'የማህሌት ዜማዎች እና ወረብ ማጀብ', 'የራስን ዜማ ማውጣት'] }
-    ],
-    'ዋሽንት': [
-      { week: '1ኛ - 4ኛ ሳምንት (ጀማሪ)', title: 'የዋሽንት መሰረት', items: ['የዋሽንት አያያዝ እና ትንፋሽ አጠቃቀም', 'የጣት አከፋፈት እና ድምፅ ማውጣት', 'የድምፅ ርዝመት መለማመጃ'] },
-      { week: '5ኛ - 8ኛ ሳምንት (መካከለኛ)', title: 'የመዝሙር ጥናት', items: ['ቀላል መዝሙራትን በዋሽንት ማውጣት', 'መዝሙር፡ "እንደ እግዚአብሔር ያለ"', 'የባቲ እና ትዝታ ቅኝቶች በዋሽንት'] },
-      { week: '9ኛ - 12ኛ ሳምንት (ከፍተኛ)', title: 'የዜማ ማጀብ', items: ['የንስሃ እና የምስጋና መዝሙራትን ማጀብ', 'ከክራር እና በገና ጋር ማዋሃድ', 'የምረቃ መዝሙር'] }
-    ]
-  };
 
   // --- Authentication Listener & Setup ---
   useEffect(() => {
@@ -1649,68 +1617,6 @@ export default function App() {
     );
   };
 
-  const renderLessonsView = () => {
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="text-center mb-4 border-b border-[#D2B48C] pb-4">
-          <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-            <ListMusic className="w-6 h-6 text-[#8B5A2B]" /> መዝሙራት
-          </h2>
-          <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የመምህሩ የትምህርት መመሪያ (Lesson Plan) </p>
-        </div>
-
-        {/* Instrument Selector */}
-        <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
-          {instrumentsList.map(inst => (
-            <button
-              key={inst}
-              onClick={() => setSelectedLessonInstrument(inst)}
-              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border ${
-                selectedLessonInstrument === inst 
-                  ? 'bg-[#8B5A2B] text-white border-[#5C4033]' 
-                  : 'bg-white text-[#5C4033] border-[#D2B48C] hover:bg-[#FAF3E0]'
-              }`}
-            >
-              {inst}
-            </button>
-          ))}
-        </div>
-
-        {/* Lesson Curriculum List */}
-        <div className="space-y-4 mt-2">
-          <div className="bg-gradient-to-r from-[#FAF3E0] to-white p-4 rounded-2xl border-2 border-[#D4AF37] shadow-sm flex items-center justify-between">
-            <span className="font-black text-[#3E2723] text-sm">የ {selectedLessonInstrument} ትምህርት ቅደም ተከተል </span>
-            <BookOpen size={20} className="text-[#8B5A2B]"/>
-          </div>
-
-          {lessonPlans[selectedLessonInstrument]?.map((plan, idx) => (
-            <div key={idx} className="bg-white rounded-3xl p-5 border border-[#EADDCA] shadow-md relative overflow-hidden group hover:border-[#8B5A2B] transition-colors">
-              <div className="absolute -right-6 -bottom-6 opacity-[0.03] text-[#8B5A2B]"><Music size={100} /></div>
-              <div className="flex items-center space-x-3 border-b-2 border-dashed border-[#EADDCA] pb-3 mb-3 relative z-10">
-                <div className="bg-[#FAF3E0] w-8 h-8 rounded-full flex items-center justify-center text-[#8B5A2B] font-black border border-[#D2B48C]">
-                  {idx + 1}
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-[#3E2723]">{plan.title}</h3>
-                  <p className="text-[10px] text-[#8B5A2B] font-bold mt-0.5">{plan.week}</p>
-                </div>
-              </div>
-              
-              <ul className="space-y-2 relative z-10">
-                {plan.items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-[#5C4033] font-bold">
-                    <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0"/>
-                    <span className="leading-relaxed">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   const renderAiAssistantView = () => (
     <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
       <div className="text-center mb-4">
@@ -1810,27 +1716,25 @@ export default function App() {
           {activeTab === 'dashboard' && renderDashboardView()}
           {activeTab === 'students' && renderRegistrationView()}
           {activeTab === 'academic' && renderAcademicView()}
-          {activeTab === 'lessons' && renderLessonsView()}
           {activeTab === 'attendance' && renderAttendanceView()}
           {activeTab === 'payments' && renderPaymentsView()}
           {activeTab === 'ai' && renderAiAssistantView()}
         </main>
 
         {/* Bottom Floating Navigation Menu Bar */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] px-1 py-3 flex justify-around items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] p-3 flex justify-around items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
           {[
-            { id: 'dashboard', icon: Home, label: 'ዋና' },
+            { id: 'dashboard', icon: Home, label: 'ዋና ገጽ' },
             { id: 'students', icon: UserPlus, label: 'መዝግብ' },
             { id: 'academic', icon: BookOpen, label: 'መረጃ' },
-            { id: 'lessons', icon: ListMusic, label: 'መዝሙር' },
+            { id: 'ai', icon: Sparkles, label: 'ረዳት', special: true },
             { id: 'attendance', icon: CheckSquare, label: 'መገኘት' },
             { id: 'payments', icon: CreditCard, label: 'ክፍያ' },
-            { id: 'ai', icon: Sparkles, label: 'AI', special: true },
           ].map((item) => (
             <button 
               key={item.id} 
               onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full transition-all duration-300 relative ${
+              className={`flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full transition-all duration-300 relative ${
                 activeTab === item.id 
                   ? item.special 
                     ? 'bg-gradient-to-b from-[#D4AF37] to-[#8B5A2B] text-white shadow-lg border-2 border-[#FAF3E0] transform -translate-y-2' 
@@ -1839,8 +1743,8 @@ export default function App() {
               }`}
             >
               {activeTab === item.id && !item.special && <div className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-[#8B5A2B]" />}
-              <item.icon size={item.special ? 18 : 16} />
-              {activeTab === item.id && !item.special && <span className="text-[7px] font-black mt-0.5">{item.label}</span>}
+              <item.icon size={item.special ? 20 : 18} />
+              {activeTab === item.id && !item.special && <span className="text-[8px] font-black mt-0.5">{item.label}</span>}
             </button>
           ))}
         </nav>
@@ -1853,8 +1757,6 @@ export default function App() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         @media print {
           body, html { 
