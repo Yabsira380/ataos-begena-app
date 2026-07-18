@@ -162,7 +162,7 @@ export default function App() {
       setStudents(mappedData);
     } catch (err) {
       showNotification('የተማሪ መረጃዎችን ለማምጣት አልተቻለም!', 'error');
-    } glocally {
+    } finally {
       setLoading(false);
     }
   };
@@ -181,7 +181,7 @@ export default function App() {
       showNotification('እንኳን በደህና መጡ መምህር!', 'success');
     } catch (err) {
       setAuthError('የተሳሳተ ኢሜይል ወይም የይለፍ ቃል አስገብተዋል። እባክዎ እንደገና ይሞክሩ።');
-    } glocally {
+    } finally {
       setIsSigningIn(false);
     }
   };
@@ -270,8 +270,6 @@ export default function App() {
       setEditStudentNoState({ isEditing: false, value: '' });
       return;
     }
-
-    // ተመሳሳይ ቁጥር መኖሩን የሚቆጣጠረው duplicate ቼክ ሙሉ በሙሉ ተነስቷል ብሮ!
 
     triggerConfirmation(
       `የተማሪውን መለያ ቁጥር ከ #${student.studentNo} ወደ #${newNo} ለመቀየር እርግጠኛ ነዎት?`,
@@ -503,7 +501,7 @@ export default function App() {
       }
     } catch (error) {
       setAiResponse("ይቅርታ መምህር፣ ከበይነመረብ (Internet) ጋር መገናኘት አልተቻለም።");
-    } glocally {
+    } finally {
       setIsAiLoading(false);
     }
   };
@@ -724,7 +722,7 @@ export default function App() {
               <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><User size={14} className="mr-1"/> የግል እና አድራሻ መረጃ </h4>
               <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
                 <div><p className="text-gray-500 mb-0.5"> የራስ ስልክ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.phone || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5">   የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
+                <div><p className="text-gray-500 mb-0.5"> የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
                 <div className="col-span-2 bg-[#F9F6F0] p-2 rounded-lg border border-[#EADDCA]">
                   <p className="text-gray-500 mb-0.5 flex items-center"><PhoneCall size={12} className="mr-1 text-[#8B5A2B]"/> የቅርብ ተጠሪ </p>
                   <p className="font-bold text-[#3E2723]">{updatedStudentObj.emergencyContactName || '-'} <span className="text-[#8B5A2B]">({updatedStudentObj.emergencyContactPhone || '-'})</span></p>
@@ -913,7 +911,7 @@ export default function App() {
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
           <div>
-            <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
+            <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
               <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> ሰላም መምህር!
             </h2>
             <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የዕለቱ የትምህርት ቤት ማጠቃለያ ሰነድ </p>
@@ -994,7 +992,7 @@ export default function App() {
               </h3>
             </div>
             <p className="text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በዚህ ዓመተ ምሕረት (<span className="font-bold text-[#8B5A2B]">{selectedYear}</span>)  እና በ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር በአጠቃላይ 
+              መምህር ሆይ፣ በዚህ ዓመተ ምሕረት (<span className="font-bold text-[#8B5A2B]">{selectedYear}</span>) እና በ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር በአጠቃላይ 
               <span className="font-bold text-[#8B5A2B]"> {totalActive} </span> ተማሪዎችን በዜማ ማሰልጠኛዎ እያስተማሩ ይገኛሉ። 
               ከነዚህም ውስጥ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች የዚህን ወር ክፍያ ገና አላጠናቀቁም። 
               ዛሬ <span className="font-bold text-green-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ያበርታዎት!
@@ -1113,7 +1111,7 @@ export default function App() {
                 value={newStudent.registrationDate} 
                 onChange={(e) => setNewStudent({...newStudent, registrationDate: e.target.value})} 
               />
-              <p className="text-[10px] text-gray-500 mt-1 pl-1">ይህ ቀን የተማሪውን የወር ክፍያ ማሳሰቢያ ዑደት ለማስላት በቁክፍነት ያገለግላል።</p>
+              <p className="text-[10px] text-gray-500 mt-1 pl-1">ይህ ቀን የተማሪውን የወር ክፍያ ማሳሰቢያ ዑደት ለማስላት በቁልፍነት ያገለግላል።</p>
             </div>
 
             <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
@@ -1124,7 +1122,7 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስልክ </label><input type="tel" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactPhone} onChange={(e) => setNewStudent({...newStudent, emergencyContactPhone: e.target.value})} /></div>
             </div>
             <div className="pt-2">
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1"> የስራ ሁኔታ </label>
+              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1">  የስራ ሁኔታ </label>
               <div className="flex space-x-6 px-2">
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ተማሪ" checked={newStudent.workStatus === 'ተማሪ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ተማሪ </span></label>
                 <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ሰራተኛ" checked={newStudent.workStatus === 'ሰራተኛ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ሰራተኛ </span></label>
@@ -1137,7 +1135,7 @@ export default function App() {
           <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><Church size={16} className="mr-2 text-[#8B5A2B]"/> መንፈሳዊ ህይወት መረጃ </h3>
           <div className="space-y-4">
             <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> አገልግሎት ክፍል (ካለዎት)</label><input type="text" placeholder="ምሳሌ፦ መዘምራን፣ ሰንበት ተማሪ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.churchService} onChange={(e) => setNewStudent({...newStudent, churchService: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመጡበት አጥቢያ ደብር </label><input type="text" placeholder="ምሳሌ፦ ቅድስት ማርያም" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.parish} onChange={(e) => setNewStudent({...newStudent, parish: e.target.value})} /></div>
+            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1">  የመጡበት አጥቢያ ደብር </label><input type="text" placeholder="ምሳሌ፦ ቅድስት ማርያም" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.parish} onChange={(e) => setNewStudent({...newStudent, parish: e.target.value})} /></div>
           </div>
         </div>
 
@@ -1225,7 +1223,7 @@ export default function App() {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="flex-1 flex items-center space-x-2 bg-amber-50/50 p-2 rounded-xl border border-[#D2B48C]">
-                  <span className="text-[10px] font-black text-[#5C4033] min-w-[75px]"> የፈተና ውጤት (%)</span>
+                  <span className="text-[10px] font-black text-[#5C4033] min-w-[75px]">  የፈተና ውጤት (%)</span>
                   <input
                     type="number"
                     placeholder="ውጤት"
