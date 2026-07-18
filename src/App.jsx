@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle, Edit
+  Calendar, Shield, AlertCircle, Edit, Save
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -84,8 +84,13 @@ export default function App() {
   const [aiResponse, setAiResponse] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  
+  // --- Profile Editing States ---
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+
   const [tempScores, setTempScores] = useState({});
   const [reportConfig, setReportConfig] = useState({
     show: false,
@@ -255,6 +260,48 @@ export default function App() {
     return String(maxNo === -Infinity ? 1 : maxNo + 1).padStart(3, '0');
   };
 
+  // --- Start Edit Profile ---
+  const startEditingProfile = (student) => {
+    setEditFormData({
+      name: student.name,
+      christian_name: student.christianName || '',
+      phone: student.phone || '',
+      emergency_contact_name: student.emergencyContactName || '',
+      emergency_contact_phone: student.emergencyContactPhone || '',
+      work_status: student.workStatus || 'ተማሪ',
+      church_service: student.churchService || '',
+      parish: student.parish || '',
+      instrument_type: student.instrumentType || 'በገና',
+      duration: student.duration || '3 ወር',
+      chosen_day: student.chosenDay || '',
+      chosen_time: student.chosenTime || '',
+      payment_amount: student.paymentAmount || '',
+      registration_date: student.registrationDate || ''
+    });
+    setIsEditingProfile(true);
+  };
+
+  // --- Save Edited Profile ---
+  const saveProfileChanges = async (studentId) => {
+    if (!editFormData.name || !editFormData.phone) {
+      showNotification("እባክዎ ሙሉ ስም እና ስልክ ቁጥር መሙላቶን ያረጋግጡ!", "error");
+      return;
+    }
+
+    triggerConfirmation('የተማሪውን መረጃ በእርግጥ ማስተካከል (Save) ይፈልጋሉ?', 'መረጃ ማስተካከያ', async () => {
+      const payload = {
+        ...editFormData,
+        payment_amount: Number(editFormData.payment_amount || 0)
+      };
+
+      const success = await updateStudentInDb(studentId, payload);
+      if (success) {
+        showNotification('የተማሪው መረጃ በተሳካ ሁኔታ ተስተካክሏል!', 'success');
+        setIsEditingProfile(false);
+      }
+    });
+  };
+
   const handleStudentNoSave = async (student) => {
     let newNo = editStudentNoState.value.trim();
     if (!newNo) {
@@ -387,6 +434,7 @@ export default function App() {
           if (selectedStudentProfile?.id === student.id) {
             setSelectedStudentProfile(null);
             setEditStudentNoState({ isEditing: false, value: '' });
+            setIsEditingProfile(false);
           }
         }
       }
@@ -660,6 +708,7 @@ export default function App() {
     const daysInMonth = selectedMonth === 'ጳጉሜ' ? 6 : 30;
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
+
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
@@ -674,17 +723,19 @@ export default function App() {
                     <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>
                   )}
                 </div>
-                <div className="flex gap-1">
-                   <label className="cursor-pointer text-[#D4AF37] bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ ቀይር">
-                      <Camera size={12} />
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhotoChange(e, updatedStudentObj)} />
-                   </label>
-                   {updatedStudentObj.photo && (
-                     <button onClick={() => handleProfilePhotoRemove(updatedStudentObj)} className="text-red-400 bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ አጥፋ">
-                       <Trash2 size={12} />
-                     </button>
-                   )}
-                </div>
+                {!isEditingProfile && (
+                  <div className="flex gap-1">
+                     <label className="cursor-pointer text-[#D4AF37] bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ ቀይር">
+                        <Camera size={12} />
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhotoChange(e, updatedStudentObj)} />
+                     </label>
+                     {updatedStudentObj.photo && (
+                       <button onClick={() => handleProfilePhotoRemove(updatedStudentObj)} className="text-red-400 bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ አጥፋ">
+                         <Trash2 size={12} />
+                       </button>
+                     )}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1">
@@ -706,110 +757,225 @@ export default function App() {
                   ) : (
                     <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">
                       #{updatedStudentObj.studentNo}
-                      <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1" title="መለያ ቁጥር አስተካክል">
-                        <Edit size={10}/>
-                      </button>
+                      {!isEditingProfile && (
+                        <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1" title="መለያ ቁጥር አስተካክል">
+                          <Edit size={10}/>
+                        </button>
+                      )}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <button onClick={() => { setSelectedStudentProfile(null); setEditStudentNoState({isEditing: false, value: ''}); }} className="p-1.5 bg-[#FAF3E0]/10 hover:bg-white/20 rounded-full text-[#D4AF37] self-start ml-2 flex-shrink-0">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="p-5 space-y-4">
-            <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm ${updatedStudentObj.status === 'completed' ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32]' : updatedStudentObj.status === 'dropped' ? 'bg-[#FFEBEE] border-[#EF9A9A] text-[#C62828]' : 'bg-[#E3F2FD] border-[#90CAF9] text-[#1565C0]'}`}>
-              <span className="font-bold text-xs">
-                {updatedStudentObj.status === 'completed' ? <> ትምህርቱን ያጠናቀቀ </> :
-                  updatedStudentObj.status === 'dropped' ? <> ትምህርቱን ያቋረጠ </> :
-                    <> በመማር ላይ ያለ (Active)</>}
-              </span>
-              {updatedStudentObj.examResult && <span className="font-black text-xs"> ውጤት: {updatedStudentObj.examResult}%</span>}
-            </div>
-            <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
-              <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
-              <span className="font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{updatedStudentObj.registrationDate || 'ያልተጠቀሰ'}</span>
-            </div>
             
-            <div className="bg-white rounded-2xl p-4 border-2 border-[#EADDCA] shadow-sm relative">
-              <div className="absolute top-1 left-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
-              <div className="absolute top-1 right-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
-              <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
-                <div className="flex flex-col">
-                  <h4 className="text-xs font-extrabold text-[#3E2723] flex items-center">
-                    <Calendar size={14} className="mr-1 text-[#8B5A2B]"/> የ {selectedMonth} ወር መገኘት
-                  </h4>
-                  <p className="text-[9px] text-[#8B5A2B]/80 italic mt-0.5 font-bold"> ማስተካከያ፦ ቀኑን በመንካት መገኘትን ይለውጡ </p>
-                </div>
-                <span className="text-[10px] bg-[#FAF3E0] text-[#8B5A2B] px-2 py-0.5 rounded-full font-bold border border-[#D2B48C]">
-                  ድምር: {daysPresent} ቀን
-                </span>
-              </div>
-              <div className="grid grid-cols-7 gap-1.5 text-center pt-1">
-                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                  const isPresent = attendanceData[day];
-                  return (
-                    <button 
-                      key={day} 
-                      onClick={() => handleCalendarDayClick(updatedStudentObj, day)}
-                      className={`flex flex-col items-center justify-center p-1.5 rounded-lg border-2 transition-all active:scale-95 ${
-                        isPresent 
-                          ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32] hover:bg-green-100' 
-                          : 'bg-[#FCFAF2] border-gray-200 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span className="text-[10px] font-extrabold leading-none">{day}</span>
-                      {isPresent ? (
-                        <Check size={12} className="mt-1 text-green-700" strokeWidth={3}/>
-                      ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5" />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-              <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><User size={14} className="mr-1"/> የግል እና አድራሻ መረጃ </h4>
-              <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                <div><p className="text-gray-500 mb-0.5"> የራስ ስልክ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.phone || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5"> የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
-                <div className="col-span-2 bg-[#F9F6F0] p-2 rounded-lg border border-[#EADDCA]">
-                  <p className="text-gray-500 mb-0.5 flex items-center"><PhoneCall size={12} className="mr-1 text-[#8B5A2B]"/> የቅርብ ተጠሪ </p>
-                  <p className="font-bold text-[#3E2723]">{updatedStudentObj.emergencyContactName || '-'} <span className="text-[#8B5A2B]">({updatedStudentObj.emergencyContactPhone || '-'})</span></p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-              <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
-              <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-              <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><BookOpen size={14} className="mr-1"/> የትምህርት እና ክፍያ መረጃ </h4>
-              <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                <div><p className="text-gray-500 mb-0.5"> የመሳሪያ አይነት </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-0.5 rounded">{updatedStudentObj.instrumentType || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
-                <div className="col-span-2">
-                  <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
-                  <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
-                </div>
-                {updatedStudentObj.status === 'active' && (
-                  <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
-                    <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
-                    {updatedStudentObj.payments[currentPeriodKey] ? (
-                      <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
-                    ) : (
-                      <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center space-x-2 flex-shrink-0 self-start ml-2">
+              {!isEditingProfile && (
+                <button onClick={() => startEditingProfile(updatedStudentObj)} className="p-1.5 bg-[#FAF3E0]/10 hover:bg-white/20 rounded-full text-[#D4AF37]" title="መረጃ አስተካክል (Edit)">
+                  <Edit size={18} />
+                </button>
+              )}
+              <button onClick={() => { setSelectedStudentProfile(null); setEditStudentNoState({isEditing: false, value: ''}); setIsEditingProfile(false); }} className="p-1.5 bg-red-500/20 hover:bg-red-500/40 rounded-full text-white">
+                <X size={18} />
+              </button>
             </div>
           </div>
+
+          {/* EDIT MODE FORM */}
+          {isEditingProfile ? (
+            <div className="p-5 bg-[#FAF6EE]">
+              <h3 className="font-extrabold text-[#8B5A2B] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-xs flex items-center">
+                <Edit size={14} className="mr-1.5"/> የተማሪ መረጃ ማስተካከያ 
+              </h3>
+              
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 pb-2">
+                <div>
+                  <label className="text-[10px] font-black text-[#5C4033] block mb-1">ሙሉ ስም <span className="text-red-500">*</span></label>
+                  <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.name} onChange={e=>setEditFormData({...editFormData, name: e.target.value})}/>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የክርስትና ስም</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.christian_name} onChange={e=>setEditFormData({...editFormData, christian_name: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">ስልክ ቁጥር <span className="text-red-500">*</span></label>
+                    <input type="tel" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.phone} onChange={e=>setEditFormData({...editFormData, phone: e.target.value})}/>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የቅርብ ተጠሪ ስም</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_name} onChange={e=>setEditFormData({...editFormData, emergency_contact_name: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የቅርብ ተጠሪ ስልክ</label>
+                    <input type="tel" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_phone} onChange={e=>setEditFormData({...editFormData, emergency_contact_phone: e.target.value})}/>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመጡበት አጥቢያ</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.parish} onChange={e=>setEditFormData({...editFormData, parish: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">አገልግሎት ክፍል</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመሳሪያ አይነት</label>
+                    <select value={editFormData.instrument_type} onChange={e=>setEditFormData({...editFormData, instrument_type: e.target.value})} className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] bg-white focus:outline-none focus:border-[#8B5A2B]">
+                       {instrumentsList.map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የጊዜ ርቀት</label>
+                    <select value={editFormData.duration} onChange={e=>setEditFormData({...editFormData, duration: e.target.value})} className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] bg-white focus:outline-none focus:border-[#8B5A2B]">
+                       {['3 ወር', '6 ወር', '9 ወር'].map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label>
+                    <input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                   <div>
+                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">ክፍያ (ብር)</label>
+                     <input type="number" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_amount} onChange={e=>setEditFormData({...editFormData, payment_amount: e.target.value})}/>
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label>
+                     <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
+                   </div>
+                </div>
+                
+                <div>
+                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የስራ ሁኔታ</label>
+                   <div className="flex gap-4">
+                     <label className="flex items-center space-x-1.5 text-xs font-bold text-[#3E2723] cursor-pointer">
+                       <input type="radio" name="editWorkStatus" value="ተማሪ" checked={editFormData.work_status === 'ተማሪ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B]"/><span>ተማሪ</span>
+                     </label>
+                     <label className="flex items-center space-x-1.5 text-xs font-bold text-[#3E2723] cursor-pointer">
+                       <input type="radio" name="editWorkStatus" value="ሰራተኛ" checked={editFormData.work_status === 'ሰራተኛ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B]"/><span>ሰራተኛ</span>
+                     </label>
+                   </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t-2 border-dashed border-[#D2B48C] mt-2">
+                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14}/> አስቀምጥ</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14}/> ተወው</button>
+              </div>
+            </div>
+          ) : (
+            /* VIEW MODE PROFILE DETAILS */
+            <div className="p-5 space-y-4">
+              <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm ${updatedStudentObj.status === 'completed' ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32]' : updatedStudentObj.status === 'dropped' ? 'bg-[#FFEBEE] border-[#EF9A9A] text-[#C62828]' : 'bg-[#E3F2FD] border-[#90CAF9] text-[#1565C0]'}`}>
+                <span className="font-bold text-xs">
+                  {updatedStudentObj.status === 'completed' ? <> ትምህርቱን ያጠናቀቀ </> :
+                    updatedStudentObj.status === 'dropped' ? <> ትምህርቱን ያቋረጠ </> :
+                      <> በመማር ላይ ያለ (Active)</>}
+                </span>
+                {updatedStudentObj.examResult && <span className="font-black text-xs"> ውጤት: {updatedStudentObj.examResult}%</span>}
+              </div>
+              <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
+                <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
+                <span className="font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{updatedStudentObj.registrationDate || 'ያልተጠቀሰ'}</span>
+              </div>
+              
+              <div className="bg-white rounded-2xl p-4 border-2 border-[#EADDCA] shadow-sm relative">
+                <div className="absolute top-1 left-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
+                <div className="absolute top-1 right-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
+                <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
+                  <div className="flex flex-col">
+                    <h4 className="text-xs font-extrabold text-[#3E2723] flex items-center">
+                      <Calendar size={14} className="mr-1 text-[#8B5A2B]"/> የ {selectedMonth} ወር መገኘት
+                    </h4>
+                    <p className="text-[9px] text-[#8B5A2B]/80 italic mt-0.5 font-bold"> ማስተካከያ፦ ቀኑን በመንካት መገኘትን ይለውጡ </p>
+                  </div>
+                  <span className="text-[10px] bg-[#FAF3E0] text-[#8B5A2B] px-2 py-0.5 rounded-full font-bold border border-[#D2B48C]">
+                    ድምር: {daysPresent} ቀን
+                  </span>
+                </div>
+                <div className="grid grid-cols-7 gap-1.5 text-center pt-1">
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                    const isPresent = attendanceData[day];
+                    return (
+                      <button 
+                        key={day} 
+                        onClick={() => handleCalendarDayClick(updatedStudentObj, day)}
+                        className={`flex flex-col items-center justify-center p-1.5 rounded-lg border-2 transition-all active:scale-95 ${
+                          isPresent 
+                            ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32] hover:bg-green-100' 
+                            : 'bg-[#FCFAF2] border-gray-200 text-gray-400 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="text-[10px] font-extrabold leading-none">{day}</span>
+                        {isPresent ? (
+                          <Check size={12} className="mt-1 text-green-700" strokeWidth={3}/>
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5" />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
+                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><User size={14} className="mr-1"/> የግል እና አድራሻ መረጃ </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
+                  <div><p className="text-gray-500 mb-0.5"> የራስ ስልክ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.phone || '-'}</p></div>
+                  <div><p className="text-gray-500 mb-0.5"> የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
+                  <div className="col-span-2 bg-[#F9F6F0] p-2 rounded-lg border border-[#EADDCA]">
+                    <p className="text-gray-500 mb-0.5 flex items-center"><PhoneCall size={12} className="mr-1 text-[#8B5A2B]"/> የቅርብ ተጠሪ </p>
+                    <p className="font-bold text-[#3E2723]">{updatedStudentObj.emergencyContactName || '-'} <span className="text-[#8B5A2B]">({updatedStudentObj.emergencyContactPhone || '-'})</span></p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
+                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
+                  <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
+                  <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
+                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><BookOpen size={14} className="mr-1"/> የትምህርት እና ክፍያ መረጃ </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
+                  <div><p className="text-gray-500 mb-0.5"> የመሳሪያ አይነት </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-0.5 rounded">{updatedStudentObj.instrumentType || '-'}</p></div>
+                  <div><p className="text-gray-500 mb-0.5"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
+                  <div className="col-span-2">
+                    <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
+                    <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
+                  </div>
+                  {updatedStudentObj.status === 'active' && (
+                    <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
+                      <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
+                      {updatedStudentObj.payments[currentPeriodKey] ? (
+                        <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
+                      ) : (
+                        <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
