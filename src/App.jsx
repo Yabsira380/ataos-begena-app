@@ -250,7 +250,8 @@ export default function App() {
 
   const generateNextStudentNo = () => {
     if (!students || students.length === 0) return '001';
-    const maxNo = Math.max(...students.map(s => parseInt(s.studentNo || '0')).filter(n => !isNaN(n)));
+    // እዚህ ጋር , 10 በመጨመር ጃቫስክሪፕት ቁጥሩን በስህተት ወደ Octal (8) እንዳይቀይረውና እንዳይቆልፈው ተስተካክሏል
+    const maxNo = Math.max(...students.map(s => parseInt(s.studentNo || '0', 10)).filter(n => !isNaN(n)));
     return String(maxNo === -Infinity ? 1 : maxNo + 1).padStart(3, '0');
   };
 
@@ -894,7 +895,7 @@ export default function App() {
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
             <BookOpen size={24} className="mb-2 text-[#8B5A2B]" />
             <span className="text-3xl font-black font-serif">{totalActive}</span>
-            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span >
+            <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span>
           </div>
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div>
@@ -1317,7 +1318,7 @@ export default function App() {
         
         <div className="space-y-4">
           {filteredPaymentStudents.map(student => {
-            const isPaidForMonth = student.payments[currentPeriodKey] || false;
+            const isPaid ForMonth = student.payments[currentPeriodKey] || false;
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
