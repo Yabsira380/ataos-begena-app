@@ -285,6 +285,43 @@ export default function App() {
     );
   };
 
+  // --- Photo Edit and Remove Handlers ---
+  const handleProfilePhotoChange = async (e, student) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    triggerConfirmation(
+      `የተማሪውን ፎቶ በአዲሱ ፎቶ ለመቀየር (Edit) እርግጠኛ ነዎት?`,
+      'የፎቶ ማስተካከያ',
+      async () => {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64String = reader.result;
+          const success = await updateStudentInDb(student.id, { photo: base64String });
+          if (success) {
+            setSelectedStudentProfile(prev => prev ? { ...prev, photo: base64String } : null);
+            showNotification("ፎቶው በተሳካ ሁኔታ ተቀይሯል!", "success");
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    );
+  };
+
+  const handleProfilePhotoRemove = async (student) => {
+    triggerConfirmation(
+      `የተማሪውን ፎቶ ሙሉ በሙሉ ለማጥፋት (Remove) እርግጠኛ ነዎት?`,
+      'ፎቶ ማጥፊያ',
+      async () => {
+        const success = await updateStudentInDb(student.id, { photo: '' });
+        if (success) {
+          setSelectedStudentProfile(prev => prev ? { ...prev, photo: '' } : null);
+          showNotification("ፎቶው በተሳካ ሁኔታ ተሰርዟል! አሁን የአፑ ፍጥነት ይስተካከላል።", "success");
+        }
+      }
+    );
+  };
+
   const handleAddStudentSubmit = (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
@@ -626,15 +663,30 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
-          <div className="sticky top-0 bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-5 flex items-center justify-between border-b-4 border-[#D4AF37] z-10">
+          <div className="sticky top-0 bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-4 flex items-center justify-between border-b-4 border-[#D4AF37] z-10">
             <div className="flex items-center space-x-3 w-full">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 overflow-hidden border border-white/20 flex-shrink-0">
-                {updatedStudentObj.photo ? (
-                  <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>
-                )}
+              {/* Photo Area with Edit & Remove */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-14 h-14 rounded-2xl bg-white/15 overflow-hidden border border-white/20 flex-shrink-0 relative">
+                  {updatedStudentObj.photo ? (
+                    <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                   <label className="cursor-pointer text-[#D4AF37] bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ ቀይር">
+                      <Camera size={12} />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfilePhotoChange(e, updatedStudentObj)} />
+                   </label>
+                   {updatedStudentObj.photo && (
+                     <button onClick={() => handleProfilePhotoRemove(updatedStudentObj)} className="text-red-400 bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="ፎቶ አጥፋ">
+                       <Trash2 size={12} />
+                     </button>
+                   )}
+                </div>
               </div>
+
               <div className="flex-1">
                 <h3 className="font-extrabold text-sm sm:text-base font-serif text-[#FFF8E7] truncate">{updatedStudentObj.name}</h3>
                 <div className="text-[10px] text-gray-300 font-bold mt-0.5 flex flex-wrap items-center gap-1">
@@ -733,7 +785,7 @@ export default function App() {
               <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
               <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
                 <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
-                <div><p className="text-gray-500 mb-0.5">  አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
+                <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
