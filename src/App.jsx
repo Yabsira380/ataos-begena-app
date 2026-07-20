@@ -51,6 +51,38 @@ const WatermarkBackground = () => (
   </div>
 );
 
+// 👇 አዲሱ የፎቶ ማሳነሻ (Compression) ፋንክሽን እዚህ ገብቷል 👇
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800; // ከፍተኛው ስፋት 800 ፒክሰል
+        const scaleSize = MAX_WIDTH / img.width;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > MAX_WIDTH) {
+          width = MAX_WIDTH;
+          height = img.height * scaleSize;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // ጥራቱን ወደ 0.7 (70%) ዝቅ አድርገን እንጠቅልለዋለን
+        resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+      };
+    };
+  });
+};
+// 👆 የፎቶ ማሳነሻው እዚህ ያበቃል 👆
+
 export default function App() {
   // --- Authentication States ---
   const [session, setSession] = useState(null);
@@ -365,16 +397,13 @@ export default function App() {
       `የተማሪውን ፎቶ በአዲሱ ፎቶ ለመቀየር (Edit) እርግጠኛ ነዎት?`,
       'የፎቶ ማስተካከያ',
       async () => {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64String = reader.result;
-          const success = await updateStudentInDb(student.id, { photo: base64String });
-          if (success) {
-            setSelectedStudentProfile(prev => prev ? { ...prev, photo: base64String } : null);
-            showNotification("ፎቶው በተሳካ ሁኔታ ተቀይሯል!", "success");
-          }
-        };
-        reader.readAsDataURL(file);
+        showNotification('ፎቶ በማዘጋጀት ላይ...', 'success');
+        const compressedImage = await compressImage(file);
+        const success = await updateStudentInDb(student.id, { photo: compressedImage });
+        if (success) {
+          setSelectedStudentProfile(prev => prev ? { ...prev, photo: compressedImage } : null);
+          showNotification("ፎቶው ተቀይሮ ተቀምጧል!", "success");
+        }
       }
     );
   };
@@ -466,14 +495,12 @@ export default function App() {
     );
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewStudent({ ...newStudent, photo: reader.result });
-      };
-      reader.readAsDataURL(file);
+      showNotification('ፎቶ በመጭመቅ ላይ...', 'success');
+      const compressedImage = await compressImage(file);
+      setNewStudent({ ...newStudent, photo: compressedImage });
     }
   };
 
@@ -1591,7 +1618,7 @@ export default function App() {
         <div className="space-y-4 mt-2">
           {lessons.filter(l => l.instrument === selectedLessonInstrument).length === 0 && (
             <div className="text-center py-8 bg-white rounded-3xl border-2 border-dashed border-[#D2B48C] text-[#8B5A2B]">
-              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም።</p>
+              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም。</p>
               <p className="text-[10px] mt-1">አዲስ ለመጨመር ከላይ ያለውን ቁልፍ ይጫኑ።</p>
             </div>
           )}
