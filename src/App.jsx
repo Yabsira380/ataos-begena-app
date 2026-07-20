@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle, Edit, Save
+  Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -62,6 +62,7 @@ export default function App() {
 
   // --- Main App States ---
   const [students, setStudents] = useState([]);
+  const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [academicViewType, setAcademicViewType] = useState('active');
@@ -80,9 +81,12 @@ export default function App() {
   const [infoSearch, setInfoSearch] = useState('');
   const [confirmModal, setConfirmModal] = useState({ show: false, title: 'የውሳኔ ማረጋገጫ', message: '', onConfirm: () => {} });
 
+  // --- AI States ---
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
+
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
   // --- Profile Editing States ---
@@ -90,6 +94,11 @@ export default function App() {
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({});
+
+  // --- Lessons (Ataos) States ---
+  const [selectedLessonInstrument, setSelectedLessonInstrument] = useState('በገና');
+  const [isEditingLesson, setIsEditingLesson] = useState(null);
+  const [editLessonForm, setEditLessonForm] = useState({ title: '', content: '' });
 
   const [tempScores, setTempScores] = useState({});
   const [reportConfig, setReportConfig] = useState({
@@ -117,6 +126,7 @@ export default function App() {
       setAuthLoading(false);
       if (session) {
         fetchStudents();
+        fetchLessons();
       }
     });
 
@@ -124,6 +134,7 @@ export default function App() {
       setSession(session);
       if (session) {
         fetchStudents();
+        fetchLessons();
       }
     });
 
@@ -162,13 +173,26 @@ export default function App() {
         examResult: s.exam_result,
         registrationDate: s.registration_date,
         payments: s.payments || {},
-        attendance: s.attendance || {}
+        attendance: s.attendance || {},
+        lesson_progress: s.lesson_progress || {}
       }));
       setStudents(mappedData);
     } catch (err) {
       showNotification('የተማሪ መረጃዎችን ለማምጣት አልተቻለም!', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- Fetch Lessons ---
+  const fetchLessons = async () => {
+    try {
+      const { data, error } = await supabase.from('lessons').select('*').order('id', { ascending: true });
+      if (!error && data) {
+        setLessons(data);
+      }
+    } catch (err) {
+      console.error("Lessons fetch error:", err);
     }
   };
 
@@ -398,7 +422,8 @@ export default function App() {
           exam_result: '',
           registration_date: newStudent.registrationDate,
           payments: {},
-          attendance: {}
+          attendance: {},
+          lesson_progress: {}
         };
 
         const { error } = await supabase
@@ -548,6 +573,51 @@ export default function App() {
         }
       }
     );
+  };
+
+  // --- Student Lesson Progress Toggle ---
+  const toggleStudentLessonProgress = async (student, lessonId) => {
+    const currentProgress = { ...(student.lesson_progress || {}) };
+    currentProgress[lessonId] = !currentProgress[lessonId]; 
+    
+    const success = await updateStudentInDb(student.id, { lesson_progress: currentProgress });
+    if (success && selectedStudentProfile?.id === student.id) {
+      setSelectedStudentProfile(prev => ({ ...prev, lesson_progress: currentProgress }));
+      showNotification('የትምህርት ደረጃ ተስተካክሏል', 'success');
+    }
+  };
+
+  // --- Lesson Management Handlers (Ataos) ---
+  const addLesson = async () => {
+    const newLesson = { 
+      instrument: selectedLessonInstrument, 
+      title: 'አዲስ የትምህርት ርዕስ', 
+      content: 'ስለ ትምህርቱ አጭር ማብራሪያ እዚህ ይጻፉ...' 
+    };
+    const { data, error } = await supabase.from('lessons').insert([newLesson]).select();
+    if (!error && data) {
+      setLessons([...lessons, ...data]);
+      showNotification('አዲስ ትምህርት ታክሏል!', 'success');
+    }
+  };
+
+  const updateLesson = async (id) => {
+    const { error } = await supabase.from('lessons').update(editLessonForm).eq('id', id);
+    if (!error) {
+      setIsEditingLesson(null);
+      fetchLessons();
+      showNotification('ትምህርቱ ተስተካክሏል!', 'success');
+    }
+  };
+
+  const deleteLesson = async (id) => {
+    triggerConfirmation('ይህንን ትምህርት ሙሉ በሙሉ ለማጥፋት እርግጠኛ ነዎት?', 'ትምህርት ማጥፊያ', async () => {
+      const { error } = await supabase.from('lessons').delete().eq('id', id);
+      if (!error) {
+        setLessons(lessons.filter(l => l.id !== id));
+        showNotification('ትምህርቱ ተሰርዟል!', 'success');
+      }
+    });
   };
 
   const triggerWindowPrint = () => window.print();
@@ -701,6 +771,62 @@ export default function App() {
     );
   };
 
+  const renderAiModal = () => {
+    if (!isAiOpen) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-[250] animate-fade-in">
+        <div className="bg-[#FAF6EE] w-full max-w-md h-[85vh] sm:h-[80vh] rounded-t-[32px] sm:rounded-[32px] overflow-hidden flex flex-col shadow-2xl relative">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#3E2723] to-[#5C4033] p-4 flex justify-between items-center text-white border-b-4 border-[#D4AF37]">
+            <div className="flex items-center gap-2">
+              <Sparkles size={20} className="text-[#D4AF37]" />
+              <div>
+                <h3 className="font-extrabold text-sm font-serif">የመረጃ መንፈሳዊ ረዳት</h3>
+                <p className="text-[10px] text-gray-300">የሰው ሠራሽ አስተውሎት አጋዥ</p>
+              </div>
+            </div>
+            <button onClick={() => setIsAiOpen(false)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="bg-[#FAF3E0] p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+              <p className="text-xs text-[#5C4033] leading-relaxed font-bold text-center italic">
+                በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን። ሰላም መምህር፣ እኔ ታማኝ የመረጃ ረዳትዎ ነኝ። ስለ ተማሪዎች ክትትል፣ ክፍያ ወይም ስለትምህርት አሰጣጥ ጉዳዮች የፈለጉትን ይጠይቁኝ።
+              </p>
+            </div>
+
+            {aiResponse && (
+              <div className="bg-white p-4 rounded-2xl border border-[#D2B48C] text-xs leading-relaxed text-[#3E2723] font-medium shadow-inner">
+                {aiResponse}
+              </div>
+            )}
+
+            {isAiLoading && (
+              <div className="flex items-center justify-center gap-2 py-4">
+                <Loader2 className="animate-spin text-[#8B5A2B]" size={20} />
+                <span className="text-xs text-[#8B5A2B] font-bold">ምላሽ በማዘጋጀት ላይ...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="p-4 bg-white border-t border-[#D2B48C]">
+            <form onSubmit={askAI} className="relative">
+              <input type="text" value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} placeholder="ጥያቄዎን ለመጻፍ እዚህ ይንኩ..." className="w-full pl-5 pr-14 py-4 bg-[#FAF6EE] rounded-full border border-[#D2B48C] shadow-inner text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" />
+              <button type="submit" disabled={isAiLoading || !aiQuery.trim()} className="absolute right-2 top-2 bottom-2 w-10 h-10 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white rounded-full flex items-center justify-center hover:scale-105 disabled:opacity-50 shadow-md transition-all">
+                <Send size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderStudentProfileModal = () => {
     if (!selectedStudentProfile) return null;
     const student = selectedStudentProfile;
@@ -708,6 +834,8 @@ export default function App() {
     const daysInMonth = selectedMonth === 'ጳጉሜ' ? 6 : 30;
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
+    
+    const studentLessons = lessons.filter(l => l.instrument === updatedStudentObj.instrumentType).sort((a, b) => a.id - b.id);
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -974,6 +1102,38 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+              {/* ---------------- LESSON PROGRESS TRACKER (MOVED TO BOTTOM) ---------------- */}
+              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm mb-4">
+                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center">
+                  <ListMusic size={14} className="mr-1"/> የትምህርት ደረጃ ክትትል (Progress)
+                </h4>
+                {studentLessons.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {studentLessons.map((lesson, idx) => {
+                      const isCompleted = updatedStudentObj.lesson_progress?.[lesson.id];
+                      return (
+                        <div key={lesson.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
+                          <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>
+                            {isCompleted && <Check size={12}/>}
+                          </button>
+                          <div>
+                            <p className={`text-[11px] font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title}</p>
+                            <p className={`text-[9px] mt-0.5 ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-[10px] font-bold">ለ{updatedStudentObj.instrumentType} የተመዘገበ የትምህርት ቅደም ተከተል የለም።</p>
+                    <p className="text-[9px] mt-1">መጀመሪያ በ "አታኦስ" ገጽ ላይ አዲስ ትምህርት ያስገቡ።</p>
+                  </div>
+                )}
+              </div>
+              {/* ------------------------------------------------------------------ */}
+              
             </div>
           )}
         </div>
@@ -1201,24 +1361,21 @@ export default function App() {
         </div>
 
         <div className="bg-gradient-to-r from-[#D4AF37] via-[#8B5A2B] to-[#D4AF37] p-[2px] rounded-3xl shadow-lg mt-4">
-          <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
+          <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white flex justify-between items-center">
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
-            <div className="flex items-center space-x-2 mb-3">
-              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
-              <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">
-                የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" />
-              </h3>
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
+                <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">
+                  የ AI ረዳት መዘክር
+                </h3>
+              </div>
+              <p className="text-xs text-[#3E2723] font-bold"> የ AI ረዳትዎን ለመጠቀም ከታች ያለውን የኮከብ ምልክት ይንኩ። </p>
             </div>
-            <p className="text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በዚህ ዓመተ ምሕረት (<span className="font-bold text-[#8B5A2B]">{selectedYear}</span>) እና በ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር በአጠቃላይ 
-              <span className="font-bold text-[#8B5A2B]"> {totalActive} </span> ተማሪዎችን በዜማ ማሰልጠኛዎ እያስተማሩ ይገኛሉ። 
-              ከነዚህም ውስጥ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች የዚህን ወር ክፍያ ገና አላጠናቀቁም። 
-              ዛሬ <span className="font-bold text-green-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ያበርታዎት!
-            </p>
           </div>
         </div>
         
-        <div className="bg-gradient-to-b from-[#FAF3E0] to-[#F5E6D3] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-[#3E2723] relative overflow-hidden">
+        <div className="bg-gradient-to-b from-[#FAF3E0] to-[#F5E6D3] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-[#3E2723] relative overflow-hidden mt-4">
           <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
           <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
             <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
@@ -1236,7 +1393,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden">
+        <div className="bg-white rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden mt-4">
           <div className="absolute -right-4 -bottom-4 text-red-500/5 pointer-events-none"><AlertCircle size={120} /></div>
           <div className="flex items-center space-x-3 border-b border-red-100 pb-3 mb-4">
             <div className="bg-red-500 p-2 rounded-xl text-white shadow-md animate-pulse">
@@ -1400,6 +1557,96 @@ export default function App() {
       </form>
     </div>
   );
+
+  const renderLessonsView = () => {
+    return (
+      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
+        <div className="text-center mb-4 border-b border-[#D2B48C] pb-4">
+          <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
+            <ListMusic className="w-6 h-6 text-[#8B5A2B]" /> አታኦስ
+          </h2>
+          <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የትምህርት ቤት ማሰልጠኛ መመሪያ (Lesson Plan) </p>
+        </div>
+
+        <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
+          {instrumentsList.map(inst => (
+            <button
+              key={inst}
+              onClick={() => setSelectedLessonInstrument(inst)}
+              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border ${
+                selectedLessonInstrument === inst 
+                  ? 'bg-[#8B5A2B] text-white border-[#5C4033]' 
+                  : 'bg-white text-[#5C4033] border-[#D2B48C] hover:bg-[#FAF3E0]'
+              }`}
+            >
+              {inst}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={addLesson} className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#8B5A2B] rounded-2xl text-white font-black flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+          <Plus size={18}/> አዲስ የ {selectedLessonInstrument} ትምህርት ጨምር
+        </button>
+
+        <div className="space-y-4 mt-2">
+          {lessons.filter(l => l.instrument === selectedLessonInstrument).length === 0 && (
+            <div className="text-center py-8 bg-white rounded-3xl border-2 border-dashed border-[#D2B48C] text-[#8B5A2B]">
+              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም።</p>
+              <p className="text-[10px] mt-1">አዲስ ለመጨመር ከላይ ያለውን ቁልፍ ይጫኑ።</p>
+            </div>
+          )}
+
+          {lessons.filter(l => l.instrument === selectedLessonInstrument).sort((a, b) => a.id - b.id).map((lesson, idx) => (
+            <div key={lesson.id} className="bg-white rounded-3xl p-5 border border-[#EADDCA] shadow-md relative overflow-hidden group">
+              <div className="absolute -right-6 -bottom-6 opacity-[0.03] text-[#8B5A2B]"><Music size={100} /></div>
+              
+              {isEditingLesson === lesson.id ? (
+                <div className="space-y-3 relative z-10">
+                  <input 
+                    className="w-full p-3 border-2 border-[#D2B48C] rounded-xl text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" 
+                    value={editLessonForm.title} 
+                    onChange={e => setEditLessonForm({...editLessonForm, title: e.target.value})} 
+                    placeholder="የትምህርቱ ርዕስ (ምሳሌ፡ 1ኛ ሳምንት - የጣት አደራደር)"
+                  />
+                  <textarea 
+                    className="w-full p-3 border-2 border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B] min-h-[80px]" 
+                    value={editLessonForm.content} 
+                    onChange={e => setEditLessonForm({...editLessonForm, content: e.target.value})} 
+                    placeholder="የትምህርቱ ዝርዝር መረጃ..."
+                  />
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={() => updateLesson(lesson.id)} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-xs font-bold shadow-md">አስቀምጥ</button>
+                    <button onClick={() => setIsEditingLesson(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative z-10">
+                  <div className="flex items-center space-x-3 border-b-2 border-dashed border-[#EADDCA] pb-3 mb-3">
+                    <div className="bg-[#FAF3E0] w-8 h-8 rounded-full flex items-center justify-center text-[#8B5A2B] font-black border border-[#D2B48C] flex-shrink-0">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-sm text-[#3E2723]">{lesson.title}</h3>
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#5C4033] font-bold leading-relaxed mb-4">{lesson.content}</p>
+                  
+                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button onClick={() => { setIsEditingLesson(lesson.id); setEditLessonForm({title: lesson.title, content: lesson.content}); }} className="flex items-center gap-1 text-[#8B5A2B] text-xs font-black bg-amber-50 px-3 py-1.5 rounded-lg border border-[#D2B48C]">
+                      <Edit size={14}/> አስተካክል
+                    </button>
+                    <button onClick={() => deleteLesson(lesson.id)} className="flex items-center gap-1 text-red-600 text-xs font-black bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
+                      <Trash2 size={14}/> አጥፋ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderAcademicView = () => {
     const filteredInfoStudents = students.filter(s => s.status === academicViewType && (s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch))));
@@ -1617,43 +1864,6 @@ export default function App() {
     );
   };
 
-  const renderAiAssistantView = () => (
-    <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-      <div className="text-center mb-4">
-        <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-          <Sparkles className="w-5 h-5 text-[#8B5A2B]" /> የመረጃ መንፈሳዊ ረዳት 
-        </h2>
-        <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የሰው ሠራሽ አስተውሎት አጋዥ </p>
-      </div>
-
-      <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C] space-y-4">
-        <p className="text-xs text-[#5C4033] leading-relaxed font-bold text-center border-b border-[#D2B48C] pb-3 italic">
-          በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን። ሰላም መምህር፣ እኔ ታማኝ የመረጃ ረዳትዎ ነኝ። ስለ ተማሪዎች ክትትል፣ ክፍያ ወይም ስለትምህርት አሰጣጥ ጉዳዮች የፈለጉትን ይጠይቁኝ።
-        </p>
-
-        {aiResponse && (
-          <div className="bg-white p-4 rounded-2xl border border-[#D2B48C] text-xs leading-relaxed text-[#3E2723] font-medium max-h-60 overflow-y-auto shadow-inner">
-            {aiResponse}
-          </div>
-        )}
-
-        {isAiLoading && (
-          <div className="flex items-center justify-center gap-2 py-4">
-            <Loader2 className="animate-spin text-[#8B5A2B]" size={20} />
-            <span className="text-xs text-[#8B5A2B] font-bold">ምላሽ በማዘጋጀት ላይ...</span>
-          </div>
-        )}
-
-        <form onSubmit={askAI} className="relative mt-2">
-          <input type="text" value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} placeholder="ጥያቄዎን ለመጻፍ እዚህ ይንኩ..." className="w-full pl-5 pr-14 py-4 bg-white rounded-full border-2 border-[#D2B48C] shadow-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" />
-          <button type="submit" disabled={isAiLoading || !aiQuery.trim()} className="absolute right-2 top-2 bottom-2 w-10 h-10 bg-[#8B5A2B] text-white rounded-full flex items-center justify-center hover:bg-[#5C4033] disabled:opacity-50 shadow-md">
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-
   // --- Auth Loading Screen ---
   if (authLoading) {
     return (
@@ -1682,10 +1892,11 @@ export default function App() {
   // --- Main Application Render Block ---
   return (
     <>
-      {/* 1. PDF PRINT PREVIEW (Rendered outside wrapper to allow clean window.print()) */}
+      {/* 1. PDF PRINT PREVIEW & AI MODAL */}
       {renderReportModal()}
+      {renderAiModal()}
 
-      {/* 2. MAIN APP COMPONENT (Completely hidden on printing) */}
+      {/* 2. MAIN APP COMPONENT */}
       <div className="app-ui hide-on-print min-h-screen bg-[#FAF6EE] flex flex-col pb-24 relative overflow-x-hidden">
         
         {/* Global Nav Bar Header */}
@@ -1716,35 +1927,47 @@ export default function App() {
           {activeTab === 'dashboard' && renderDashboardView()}
           {activeTab === 'students' && renderRegistrationView()}
           {activeTab === 'academic' && renderAcademicView()}
+          {activeTab === 'lessons' && renderLessonsView()}
           {activeTab === 'attendance' && renderAttendanceView()}
           {activeTab === 'payments' && renderPaymentsView()}
-          {activeTab === 'ai' && renderAiAssistantView()}
         </main>
 
-        {/* Bottom Floating Navigation Menu Bar */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] p-3 flex justify-around items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
+        {/* Floating AI Button (Available Globally) */}
+        {!isAiOpen && (
+          <button 
+            onClick={() => setIsAiOpen(true)}
+            className="fixed bottom-24 right-5 bg-gradient-to-r from-[#D4AF37] to-[#8B5A2B] text-white p-4 rounded-full shadow-[0_4px_15px_rgba(139,90,43,0.4)] z-[100] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center animate-bounce-subtle"
+          >
+            <Sparkles size={24} />
+          </button>
+        )}
+
+        {/* Beautiful Bottom Navigation Menu Bar */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] px-2 py-2 flex justify-between items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
           {[
-            { id: 'dashboard', icon: Home, label: 'ዋና ገጽ' },
+            { id: 'dashboard', icon: Home, label: 'ዋና' },
             { id: 'students', icon: UserPlus, label: 'መዝግብ' },
             { id: 'academic', icon: BookOpen, label: 'መረጃ' },
-            { id: 'ai', icon: Sparkles, label: 'ረዳት', special: true },
+            { id: 'lessons', icon: ListMusic, label: 'አታኦስ' },
             { id: 'attendance', icon: CheckSquare, label: 'መገኘት' },
             { id: 'payments', icon: CreditCard, label: 'ክፍያ' },
           ].map((item) => (
             <button 
               key={item.id} 
               onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full transition-all duration-300 relative ${
+              className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-all duration-300 relative ${
                 activeTab === item.id 
-                  ? item.special 
-                    ? 'bg-gradient-to-b from-[#D4AF37] to-[#8B5A2B] text-white shadow-lg border-2 border-[#FAF3E0] transform -translate-y-2' 
-                    : 'text-[#8B5A2B]' 
-                  : 'text-[#8D6E63] hover:text-[#5C4033]'
+                  ? 'bg-[#8B5A2B]/10 text-[#8B5A2B] transform -translate-y-1' 
+                  : 'text-[#8D6E63] hover:bg-[#8B5A2B]/5 hover:text-[#5C4033]'
               }`}
             >
-              {activeTab === item.id && !item.special && <div className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-[#8B5A2B]" />}
-              <item.icon size={item.special ? 20 : 18} />
-              {activeTab === item.id && !item.special && <span className="text-[8px] font-black mt-0.5">{item.label}</span>}
+              <item.icon size={20} className={activeTab === item.id ? "mb-0.5" : ""} />
+              <span className={`text-[9px] font-black transition-all ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>
+                {item.label}
+              </span>
+              {activeTab === item.id && (
+                 <div className="absolute -bottom-2 w-4 h-1 rounded-full bg-[#8B5A2B]" />
+              )}
             </button>
           ))}
         </nav>
@@ -1756,7 +1979,16 @@ export default function App() {
         body { font-family: 'Noto Serif Ethiopic', serif; margin: 0; padding: 0; background-color: #FAF6EE; min-height: 100vh; color: #3E2723; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes bounceSubtle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+        .animate-bounce-subtle { animation: bounceSubtle 2s infinite ease-in-out; }
+        
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         @media print {
           body, html { 
