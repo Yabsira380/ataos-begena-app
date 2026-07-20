@@ -51,7 +51,6 @@ const WatermarkBackground = () => (
   </div>
 );
 
-// 👇 አዲሱ የፎቶ ማሳነሻ (Compression) ፋንክሽን እዚህ ገብቷል 👇
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -61,7 +60,7 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; // ከፍተኛው ስፋት 800 ፒክሰል
+        const MAX_WIDTH = 800;
         const scaleSize = MAX_WIDTH / img.width;
         let width = img.width;
         let height = img.height;
@@ -75,13 +74,11 @@ const compressImage = (file) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // ጥራቱን ወደ 0.7 (70%) ዝቅ አድርገን እንጠቅልለዋለን
         resolve(canvas.toDataURL('image/jpeg', 0.7)); 
       };
     };
   });
 };
-// 👆 የፎቶ ማሳነሻው እዚህ ያበቃል 👆
 
 export default function App() {
   // --- Authentication States ---
@@ -656,9 +653,16 @@ export default function App() {
     setAiResponse('');
     const userQuestion = aiQuery;
     setAiQuery('');
+    
+    // 👇 የፎቶውን ከባድ መረጃ (Base64) በማጽዳት ዳታቤዙን ቀላል እና ለ API ምቹ ማድረግ 👇
+    const sanitizedStudents = students.map(s => {
+      const { photo, ...cleanStudent } = s;
+      return cleanStudent;
+    });
+
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች መረጃ፦ ${JSON.stringify(students)}`;
+    const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች ወቅታዊ መረጃ፦ ${JSON.stringify(sanitizedStudents)}`;
 
     const payload = {
       contents: [
@@ -677,7 +681,7 @@ export default function App() {
       const data = await res.json();
       
       if (data.error) {
-        setAiResponse(`የጉግል ስህተት መልእክት፦ ${data.error.message} (${data.error.status})`);
+        setAiResponse(`የስህተት መልእክት፦ ${data.error.message}`);
       } else {
         setAiResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "ይቅርታ መምህር፣ ጥያቄዎን በሚገባ ማስተዋል አልቻልኩም።");
       }
@@ -1130,7 +1134,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ---------------- LESSON PROGRESS TRACKER (MOVED TO BOTTOM) ---------------- */}
+              {/* ---------------- LESSON PROGRESS TRACKER ---------------- */}
               <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm mb-4">
                 <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center">
                   <ListMusic size={14} className="mr-1"/> የትምህርት ደረጃ ክትትል (Progress)
@@ -1159,8 +1163,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-              {/* ------------------------------------------------------------------ */}
-              
             </div>
           )}
         </div>
@@ -1387,18 +1389,19 @@ export default function App() {
           </div>
         </div>
 
+        {/* 👇 የ AI አውቶማቲክ ሰመራይዝ (Summary) ካርድ በትክክል ተመልሷል 👇 */}
         <div className="bg-gradient-to-r from-[#D4AF37] via-[#8B5A2B] to-[#D4AF37] p-[2px] rounded-3xl shadow-lg mt-4">
-          <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white flex justify-between items-center">
+          <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
-            <div>
-              <div className="flex items-center space-x-2 mb-2">
-                <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
-                <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">
-                  የ AI ረዳት መዘክር
-                </h3>
-              </div>
-              <p className="text-xs text-[#3E2723] font-bold"> የ AI ረዳትዎን ለመጠቀም ከታች ያለውን የኮከብ ምልክት ይንኩ። </p>
+            <div className="flex items-center space-x-2 mb-3">
+              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
+              <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">
+                የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" />
+              </h3>
             </div>
+            <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
+              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
+            </p>
           </div>
         </div>
         
@@ -1406,7 +1409,7 @@ export default function App() {
           <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
           <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
             <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
-            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]"> የማሰልጠኛው የገንዘብ ሰነድ </h3>
+            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]">  የማሰልጠኛው የገንዘብ ሰነድ </h3>
           </div>
           <div className="space-y-4 relative z-10">
             <div className="flex justify-between items-center px-2">
@@ -1475,7 +1478,7 @@ export default function App() {
     <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
       <div className="text-center mb-4">
         <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-          <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> የመመዝገቢያ ቃል ኪዳን
+          <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" />  የመመዝገቢያ ቃል ኪዳን
         </h2>
         <p className="text-xs text-[#8B5A2B] font-bold mt-1"> አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
       </div>
@@ -1545,7 +1548,7 @@ export default function App() {
           <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><BookOpen size={16} className="mr-2 text-[#8B5A2B]"/> የዜማ ትምህርት ምርጫ </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center"><Music size={12} className="mr-1"/> የዜማ መሳሪያ አይነት </label>
+              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center"><Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት </label>
               <div className="relative">
                 <select 
                   value={newStudent.instrumentType} 
@@ -1618,7 +1621,7 @@ export default function App() {
         <div className="space-y-4 mt-2">
           {lessons.filter(l => l.instrument === selectedLessonInstrument).length === 0 && (
             <div className="text-center py-8 bg-white rounded-3xl border-2 border-dashed border-[#D2B48C] text-[#8B5A2B]">
-              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም。</p>
+              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም።</p>
               <p className="text-[10px] mt-1">አዲስ ለመጨመር ከላይ ያለውን ቁልፍ ይጫኑ።</p>
             </div>
           )}
@@ -1643,7 +1646,7 @@ export default function App() {
                   />
                   <div className="flex gap-2 pt-2">
                     <button onClick={() => updateLesson(lesson.id)} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-xs font-bold shadow-md">አስቀምጥ</button>
-                    <button onClick={() => setIsEditingLesson(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
+                    <button onClick={() => Hills(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
                   </div>
                 </div>
               ) : (
