@@ -13,6 +13,48 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// --- Ethiopian Real-time Date Calculation Function ---
+const getEthiopianDate = (date = new Date()) => {
+  const gYear = date.getFullYear();
+  const gMonth = date.getMonth() + 1;
+  const gDay = date.getDate();
+
+  const months = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+
+  const isGregLeap = (gYear % 4 === 0 && gYear % 100 !== 0) || (gYear % 400 === 0);
+  const gMonthDays = [0, 31, isGregLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  
+  let dayOfYear = gDay;
+  for (let i = 1; i < gMonth; i++) dayOfYear += gMonthDays[i];
+
+  const sept11Day = isGregLeap ? 255 : 254;
+
+  let eYear, eMonthIdx, eDay;
+
+  if (dayOfYear >= sept11Day) {
+    eYear = gYear - 7;
+    const diff = dayOfYear - sept11Day;
+    eMonthIdx = Math.floor(diff / 30);
+    eDay = (diff % 30) + 1;
+  } else {
+    eYear = gYear - 8;
+    const prevLeap = ((gYear - 1) % 4 === 0 && (gYear - 1) % 100 !== 0) || ((gYear - 1) % 400 === 0);
+    const prevYearDays = prevLeap ? 366 : 365;
+    const prevSept11 = prevLeap ? 255 : 254;
+    const diff = (prevYearDays - prevSept11) + dayOfYear;
+    eMonthIdx = Math.floor(diff / 30);
+    eDay = (diff % 30) + 1;
+  }
+
+  if (eMonthIdx > 12) eMonthIdx = 12;
+
+  return {
+    year: String(eYear),
+    month: months[eMonthIdx] || 'መስከረም',
+    day: eDay
+  };
+};
+
 // --- Custom Spiritual Icons & SVG Rebuilding ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
   <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -100,10 +142,13 @@ export default function App() {
   const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
-  const [selectedYear, setSelectedYear] = useState('2018');
-  const [selectedMonth, setSelectedMonth] = useState('ሐምሌ');
-  const [selectedDay, setSelectedDay] = useState(1);
+  // ---------------- የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ ----------------
+  const todayEth = getEthiopianDate();
+  const [selectedYear, setSelectedYear] = useState(todayEth.year);
+  const [selectedMonth, setSelectedMonth] = useState(todayEth.month);
+  const [selectedDay, setSelectedDay] = useState(todayEth.day);
   const currentPeriodKey = `${selectedYear}_${selectedMonth}`;
+  // ------------------------------------------------------------------
 
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -654,7 +699,7 @@ export default function App() {
     const userQuestion = aiQuery;
     setAiQuery('');
     
-    // 👇 የፎቶውን ከባድ መረጃ (Base64) በማጽዳት ዳታቤዙን ቀላል እና ለ API ምቹ ማድረግ 👇
+    // የፎቶ መረጃዎችን በማፅዳት መረጃውን ለ Gemini API ማቅለል
     const sanitizedStudents = students.map(s => {
       const { photo, ...cleanStudent } = s;
       return cleanStudent;
@@ -1373,7 +1418,7 @@ export default function App() {
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div>
             <CheckSquare size={24} className="mb-2 text-green-700" />
             <span className="text-3xl font-black font-serif">{totalPresentToday}</span>
-            <span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ </span>
+            <span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span>
           </div>
           <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div>
@@ -1389,7 +1434,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 👇 የ AI አውቶማቲክ ሰመራይዝ (Summary) ካርድ በትክክል ተመልሷል 👇 */}
+        {/* AI አውቶማቲክ ሰመራይዝ */}
         <div className="bg-gradient-to-r from-[#D4AF37] via-[#8B5A2B] to-[#D4AF37] p-[2px] rounded-3xl shadow-lg mt-4">
           <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
@@ -1400,7 +1445,7 @@ export default function App() {
               </h3>
             </div>
             <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
+              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት (<span className="font-bold text-blue-700">{selectedMonth} {selectedDay} ቀን</span>) ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
             </p>
           </div>
         </div>
@@ -1646,7 +1691,7 @@ export default function App() {
                   />
                   <div className="flex gap-2 pt-2">
                     <button onClick={() => updateLesson(lesson.id)} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-xs font-bold shadow-md">አስቀምጥ</button>
-                    <button onClick={() => Hills(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
+                    <button onClick={() => setIsEditingLesson(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
                   </div>
                 </div>
               ) : (
