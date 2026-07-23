@@ -142,13 +142,16 @@ export default function App() {
   const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
-  // ---------------- የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ ----------------
+  // የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ
   const todayEth = getEthiopianDate();
   const [selectedYear, setSelectedYear] = useState(todayEth.year);
   const [selectedMonth, setSelectedMonth] = useState(todayEth.month);
   const [selectedDay, setSelectedDay] = useState(todayEth.day);
   const currentPeriodKey = `${selectedYear}_${selectedMonth}`;
-  // ------------------------------------------------------------------
+
+  // 👇 ለዳሽቦርድ ለይቶ ማሳያ አዳዲስ ስቴቶች 👇
+  const [attendanceFilter, setAttendanceFilter] = useState('all'); // 'all', 'present', 'absent'
+  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all', 'paid', 'unpaid'
 
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -699,7 +702,6 @@ export default function App() {
     const userQuestion = aiQuery;
     setAiQuery('');
     
-    // የፎቶ መረጃዎችን በማፅዳት መረጃውን ለ Gemini API ማቅለል
     const sanitizedStudents = students.map(s => {
       const { photo, ...cleanStudent } = s;
       return cleanStudent;
@@ -1395,6 +1397,7 @@ export default function App() {
           <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
         </div>
 
+        {/* ---------------- DASHBOARD INTERACTIVE CARDS ---------------- */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
@@ -1402,31 +1405,39 @@ export default function App() {
             <span className="text-3xl font-black font-serif">{totalActive}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span>
           </div>
+          
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div>
             <Award size={24} className="mb-2 text-green-700" />
             <span className="text-3xl font-black font-serif">{completedStudentsCount}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span>
           </div>
+          
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><UserMinus size={64}/></div>
             <UserMinus size={24} className="mb-2 text-red-700" />
             <span className="text-3xl font-black font-serif">{droppedStudentsCount}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span>
           </div>
-          <div onClick={() => setActiveTab('attendance')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
+          
+          {/* 👇 ዛሬ የተገኙት ብቻ እንዲታዩ መለያ 👇 */}
+          <div onClick={() => { setActiveTab('attendance'); setAttendanceFilter('present'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div>
             <CheckSquare size={24} className="mb-2 text-green-700" />
             <span className="text-3xl font-black font-serif">{totalPresentToday}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span>
           </div>
-          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1">
+          
+          {/* 👇 የከፈሉት ብቻ እንዲታዩ መለያ 👇 */}
+          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div>
             <CreditCard size={24} className="mb-2 text-[#D4AF37]" />
             <span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span>
             <span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span>
           </div>
-          <div onClick={() => setActiveTab('payments')} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
+          
+          {/* 👇 ያልከፈሉት ብቻ እንዲታዩ መለያ 👇 */}
+          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('unpaid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div>
             <XCircle size={24} className="mb-2 text-red-700" />
             <span className="text-3xl font-black font-serif">{totalUnpaidCurrentMonth}</span>
@@ -1814,7 +1825,18 @@ export default function App() {
   };
 
   const renderAttendanceView = () => {
-    const filteredStudents = activeStudents.filter(s => s.name.toLowerCase().includes(attendanceSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(attendanceSearch)));
+    let filteredStudents = activeStudents.filter(s => 
+      s.name.toLowerCase().includes(attendanceSearch.toLowerCase()) || 
+      (s.studentNo && s.studentNo.includes(attendanceSearch))
+    );
+
+    // 👇 ለይቶ ማሳያ ማጣሪያ (Filter) 👇
+    if (attendanceFilter === 'present') {
+      filteredStudents = filteredStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]);
+    } else if (attendanceFilter === 'absent') {
+      filteredStudents = filteredStudents.filter(s => !s.attendance?.[currentPeriodKey]?.[selectedDay]);
+    }
+
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1825,6 +1847,13 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'attendance', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#8B5A2B] text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-[#5C4033] border border-[#D4AF37] transition-colors">
             <Printer size={14} /> ሪፖርት
           </button>
+        </div>
+
+        {/* ማጣሪያ ቁልፎች (Filter Buttons) */}
+        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
+          <button onClick={() => setAttendanceFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም</button>
+          <button onClick={() => setAttendanceFilter('present')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'present' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የተገኙ ብቻ</button>
+          <button onClick={() => setAttendanceFilter('absent')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'absent' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልተገኙ ብቻ</button>
         </div>
 
         <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-3 gap-2">
@@ -1873,14 +1902,25 @@ export default function App() {
               </div>
             );
           })}
-          {filteredStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በመማር ላይ ያለ ተማሪ አልተገኘም። </p>}
+          {filteredStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
   };
 
   const renderPaymentsView = () => {
-    const filteredPaymentStudents = activeStudents.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
+    let filteredPaymentStudents = activeStudents.filter(s => 
+      s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || 
+      (s.studentNo && s.studentNo.includes(paymentSearch))
+    );
+
+    // 👇 ለይቶ ማሳያ ማጣሪያ (Filter) 👇
+    if (paymentFilter === 'paid') {
+      filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey]);
+    } else if (paymentFilter === 'unpaid') {
+      filteredPaymentStudents = filteredPaymentStudents.filter(s => !s.payments[currentPeriodKey]);
+    }
+
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1891,6 +1931,13 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors">
             <Printer size={14} /> ሪፖርት
           </button>
+        </div>
+
+        {/* ማጣሪያ ቁልፎች (Filter Buttons) */}
+        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
+          <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም</button>
+          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ ብቻ</button>
+          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ ብቻ</button>
         </div>
 
         <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
@@ -1933,7 +1980,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በመማር ላይ ያለ ተማሪ አልተገኘም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
@@ -2029,7 +2076,12 @@ export default function App() {
           ].map((item) => (
             <button 
               key={item.id} 
-              onClick={() => setActiveTab(item.id)} 
+              onClick={() => {
+                setActiveTab(item.id);
+                // ከታች ባለው ሜኑ ሲገባ ማጣሪያውን ወደ ሁሉም (All) ይመልሰዋል
+                if (item.id === 'attendance') setAttendanceFilter('all');
+                if (item.id === 'payments') setPaymentFilter('all');
+              }} 
               className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-all duration-300 relative ${
                 activeTab === item.id 
                   ? 'bg-[#8B5A2B]/10 text-[#8B5A2B] transform -translate-y-1' 
