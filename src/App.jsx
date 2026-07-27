@@ -98,7 +98,7 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
   if (selY < tY) isDue = true; // ያለፈ አመት
   else if (selY === tY) {
       if (selMIdx < tMIdx) isDue = true; // ያለፈ ወር
-      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; // የአሁኑ ወር ሆኖ ዛሬው ቀን ከመክፈያ ቀኑ ከበለጠ (ለምሳሌ 25 > 22)
+      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; // የአሁኑ ወር ሆኖ ዛሬው ቀን ከመክፈያ ቀኑ ከበለጠ
   }
 
   // 🔴 30 ቀናት ሳይሞላው "አልከፈለም" እንዳይል የሚከለክለው ወሳኝ ሎጂክ
@@ -131,7 +131,7 @@ const getUnpaidMonthsInfo = (student, todayEth) => {
 
   const unpaidKeys = [];
 
-  // ዑደቱ (Loop) የሚጀምረው ከተመዘገበበት ዓመት ጀምሮ እስከ ዛሬ ብቻ ነው (ለከፍተኛ ፍጥነት)
+  // ዑደቱ (Loop) የሚጀምረው ከተመዘገበበት ዓመት ጀምሮ እስከ ዛሬ ብቻ ነው
   for (let y = regY; y <= tY; y++) {
       const startMonthIdx = (y === regY) ? regMIdx : 0;
       const endMonthIdx = (y === tY) ? tMIdx : 12;
@@ -761,7 +761,7 @@ export default function App() {
             <div className="flex items-center space-x-3 w-full">
               <div className="flex flex-col items-center gap-1">
                 <div className="w-14 h-14 rounded-2xl bg-white/15 overflow-hidden border border-white/20 flex-shrink-0 relative">
-                  {updatedStudentObj.photo ? <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>}
+                  {updatedStudentObj.photo ? <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24} /></div>}
                 </div>
                 {!isEditingProfile && (
                   <div className="flex gap-1">
@@ -777,11 +777,11 @@ export default function App() {
                   {editStudentNoState.isEditing ? (
                     <div className="flex items-center gap-1 bg-white/20 p-0.5 rounded">
                       <input type="text" value={editStudentNoState.value} onChange={e => setEditStudentNoState({...editStudentNoState, value: e.target.value})} className="text-[#3E2723] px-1 py-0.5 rounded w-14 text-[10px] font-black focus:outline-none" autoFocus/>
-                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors"><Check size={10}/></button>
-                      <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors"><X size={10}/></button>
+                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors"><Check size={10} /></button>
+                      <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors"><X size={10} /></button>
                     </div>
                   ) : (
-                    <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">#{updatedStudentObj.studentNo} {!isEditingProfile && <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1"><Edit size={10}/></button>}</span>
+                    <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">#{updatedStudentObj.studentNo} {!isEditingProfile && <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1"><Edit size={10} /></button>}</span>
                   )}
                 </div>
               </div>
@@ -850,8 +850,8 @@ export default function App() {
                 </div>
               </div>
               <div className="flex gap-3 pt-4 border-t-2 border-dashed border-[#D2B48C] mt-2">
-                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14}/> አስቀምጥ</button>
-                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14}/> ተወው</button>
+                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14} /> አስቀምጥ</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14} /> ተወው</button>
               </div>
             </div>
           ) : (
@@ -1006,7 +1006,7 @@ export default function App() {
           <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
             <div className="flex items-center space-x-2 mb-3">
-              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
+              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16} /></div>
               <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" /></h3>
             </div>
             <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
@@ -1208,7 +1208,7 @@ export default function App() {
   );
 
   const renderAcademicView = () => {
-    const filteredInfoStudents = students.filter(s => s.status === academicViewType && safeIncludes(s.name, infoSearch) || safeIncludes(s.studentNo, infoSearch));
+    const filteredInfoStudents = students.filter(s => s.status === academicViewType && (safeIncludes(s.name, infoSearch) || safeIncludes(s.studentNo, infoSearch)));
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1233,7 +1233,7 @@ export default function App() {
         </div>
 
         <div className="space-y-4">
-          {filteredInfoStudents.filter(s => s.status === academicViewType).map(student => (
+          {filteredInfoStudents.map(student => (
             <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
               <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
                 <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
@@ -1291,7 +1291,7 @@ export default function App() {
               </div>
             </div>
           ))}
-          {filteredInfoStudents.filter(s => s.status === academicViewType).length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
+          {filteredInfoStudents.length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
         </div>
       </div>
     );
@@ -1575,7 +1575,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
         <Loader2 className="animate-spin mb-4 text-[#8B5A2B]" size={40} />
-        <p className="text-xs font-bold text-[#8B5A2B]">የተማሪዎች መረጃ ከኦንላይን ዳታቤዝ በመጫን ላይ ነው...</p>
+        <p className="text-xs font-bold text-[#8B5A2B]">የተማሪዎች መረጃ በመጫን ላይ ነው...</p>
       </div>
     );
   }
@@ -1592,7 +1592,7 @@ export default function App() {
             <span className="font-black text-sm sm:text-base font-serif text-[#FFF8E7]">አታኦስ በገና ማሰልጠኛ</span>
           </div>
           <button onClick={handleLogout} className="bg-red-700/80 hover:bg-red-800 text-white px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1 shadow-sm border border-red-500/30">
-            <UserMinus size={14} /> ውጣ (Logout)
+            <UserMinus size={14} /> ውጣ
           </button>
         </header>
 
