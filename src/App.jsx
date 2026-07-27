@@ -14,6 +14,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
+const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
 // --- Ethiopian Real-time Date Calculation Function ---
 const getEthiopianDate = (date = new Date()) => {
@@ -112,9 +114,6 @@ const getUnpaidMonthsInfo = (student) => {
   }
   return { unpaidKeys, totalArrears: unpaidKeys.length * amt };
 };
-
-const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
-const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
 // --- Custom Spiritual Icons & SVG Rebuilding ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
@@ -311,7 +310,7 @@ export default function App() {
       setStudents(mappedData);
     } catch (err) {
       showNotification('የተማሪ መረጃዎችን ለማምጣት አልተቻለም!', 'error');
-    } fontally {
+    } finally {
       setLoading(false);
     }
   };
@@ -932,101 +931,99 @@ export default function App() {
     );
   };
 
-  const renderDashboardView = () => {
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="flex justify-between items-center mb-2">
+  const renderDashboardView = () => (
+    <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
+            <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> ሰላም መምህር!
+          </h2>
+          <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የዕለቱ የትምህርት ቤት ማጠቃለያ ሰነድ </p>
+        </div>
+        <div className="flex flex-col items-end space-y-2">
+          <button onClick={() => setReportConfig({show: true, type: 'general', statusFilter: 'all'})} className="bg-[#8B5A2B] hover:bg-[#5C4033] text-white p-2.5 rounded-xl shadow-md transition-all active:scale-95 flex items-center space-x-1 border border-[#D4AF37]" title="ሪፖርት አውጣ (PDF)"><Printer size={18} /><span className="text-xs font-bold px-1 hidden sm:inline"> አትም </span></button>
+          <div className="flex space-x-1">
+            <div className="relative"><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="appearance-none bg-white border border-[#C19A6B] text-[#5C4033] text-xs font-bold py-2 pl-2 pr-6 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select><ChevronDown className="absolute right-1 top-2.5 text-[#8B5A2B] pointer-events-none" size={12} /></div>
+            <div className="relative"><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="appearance-none bg-[#F5E6D3] border border-[#C19A6B] text-[#5C4033] text-xs font-bold py-2 pl-2 pr-6 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select><ChevronDown className="absolute right-1 top-2.5 text-[#8B5A2B] pointer-events-none" size={12} /></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center opacity-40 my-1">
+        <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
+        <div className="h-[2px] bg-gradient-to-r from-transparent via-[#8B5A2B] to-transparent flex-1 mx-2" />
+        <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div><BookOpen size={24} className="mb-2 text-[#8B5A2B]" /><span className="text-3xl font-black font-serif">{totalActive}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span></div>
+        <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div><Award size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{completedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span></div>
+        <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><UserMinus size={64}/></div><UserMinus size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{droppedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span></div>
+        <div onClick={() => { setActiveTab('attendance'); setAttendanceFilter('present'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div><CheckSquare size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{totalPresentToday}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span></div>
+        <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div><CreditCard size={24} className="mb-2 text-[#D4AF37]" /><span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span></div>
+        <div onClick={() => { setActiveTab('payments'); setPaymentFilter('unpaid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div><XCircle size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{totalUnpaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያልከፈሉ ({selectedMonth})</span></div>
+      </div>
+
+      <div className="bg-gradient-to-r from-[#D4AF37] via-[#8B5A2B] to-[#D4AF37] p-[2px] rounded-3xl shadow-lg mt-4">
+        <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
+          <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
+          <div className="flex items-center space-x-2 mb-3">
+            <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
+            <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" /></h3>
+          </div>
+          <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
+            መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ በ {selectedMonth} ወር ክፍያ የሚጠበቅባቸው <span className="font-bold text-[#8B5A2B]">{eligiblePaymentStudents.length}</span> ሲሆኑ፣ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት (<span className="font-bold text-blue-700">{selectedMonth} {selectedDay} ቀን</span>) ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
+          </p>
+        </div>
+      </div>
+      
+      <div className="bg-gradient-to-b from-[#FAF3E0] to-[#F5E6D3] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-[#3E2723] relative overflow-hidden mt-4">
+        <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
+        <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
+          <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
+          <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]">  የማሰልጠኛው የገንዘብ ሰነድ </h3>
+        </div>
+        <div className="space-y-4 relative z-10">
+          <div className="flex justify-between items-center px-2"><span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] mr-2"></div> የሚጠበቅ ጠቅላላ ገቢ </span><span className="text-[#8B5A2B] font-black font-serif text-lg">{totalRevenueExpected} <span className="text-xs font-normal"> ብር </span></span></div>
+          <div className="flex justify-between items-center px-2"><span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-600 mr-2"></div> የተሰበሰበ ገቢ </span><span className="text-green-700 font-black font-serif text-lg">{totalRevenueCollected} <span className="text-xs font-normal"> ብር </span></span></div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden mt-4">
+        <div className="absolute -right-4 -bottom-4 text-red-500/5 pointer-events-none"><AlertCircle size={120} /></div>
+        <div className="flex items-center space-x-3 border-b border-red-100 pb-3 mb-4">
+          <div className="bg-red-500 p-2 rounded-xl text-white shadow-md animate-pulse"><AlertTriangle size={20} /></div>
           <div>
-            <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
-              <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /> ሰላም መምህር!
-            </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የዕለቱ የትምህርት ቤት ማጠቃለያ ሰነድ </p>
-          </div>
-          <div className="flex flex-col items-end space-y-2">
-            <button onClick={() => setReportConfig({show: true, type: 'general', statusFilter: 'all'})} className="bg-[#8B5A2B] hover:bg-[#5C4033] text-white p-2.5 rounded-xl shadow-md transition-all active:scale-95 flex items-center space-x-1 border border-[#D4AF37]" title="ሪፖርት አውጣ (PDF)"><Printer size={18} /><span className="text-xs font-bold px-1 hidden sm:inline"> አትም </span></button>
-            <div className="flex space-x-1">
-              <div className="relative"><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="appearance-none bg-white border border-[#C19A6B] text-[#5C4033] text-xs font-bold py-2 pl-2 pr-6 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select><ChevronDown className="absolute right-1 top-2.5 text-[#8B5A2B] pointer-events-none" size={12} /></div>
-              <div className="relative"><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="appearance-none bg-[#F5E6D3] border border-[#C19A6B] text-[#5C4033] text-xs font-bold py-2 pl-2 pr-6 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select><ChevronDown className="absolute right-1 top-2.5 text-[#8B5A2B] pointer-events-none" size={12} /></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-between items-center opacity-40 my-1">
-          <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
-          <div className="h-[2px] bg-gradient-to-r from-transparent via-[#8B5A2B] to-transparent flex-1 mx-2" />
-          <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div><BookOpen size={24} className="mb-2 text-[#8B5A2B]" /><span className="text-3xl font-black font-serif">{totalActive}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span></div>
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div><Award size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{completedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span></div>
-          <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><UserMinus size={64}/></div><UserMinus size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{droppedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span></div>
-          <div onClick={() => { setActiveTab('attendance'); setAttendanceFilter('present'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div><CheckSquare size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{totalPresentToday}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span></div>
-          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div><CreditCard size={24} className="mb-2 text-[#D4AF37]" /><span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span></div>
-          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('unpaid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div><XCircle size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{totalUnpaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያልከፈሉ ({selectedMonth})</span></div>
-        </div>
-
-        <div className="bg-gradient-to-r from-[#D4AF37] via-[#8B5A2B] to-[#D4AF37] p-[2px] rounded-3xl shadow-lg mt-4">
-          <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
-            <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
-            <div className="flex items-center space-x-2 mb-3">
-              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
-              <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" /></h3>
-            </div>
-            <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ በ {selectedMonth} ወር ክፍያ የሚጠበቅባቸው <span className="font-bold text-[#8B5A2B]">{eligiblePaymentStudents.length}</span> ሲሆኑ፣ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት (<span className="font-bold text-blue-700">{selectedMonth} {selectedDay} ቀን</span>) ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
-            </p>
+            <h3 className="font-black text-sm text-red-900 font-serif">ያልተከፈለ ዕዳ ያለባቸው ተማሪዎች</h3>
+            <p className="text-[10px] text-red-600/80 font-bold">እስከ ዛሬዋ ዕለት ድረስ ክፍያ ያጓተቱ ({overdueUnpaidCount})</p>
           </div>
         </div>
         
-        <div className="bg-gradient-to-b from-[#FAF3E0] to-[#F5E6D3] p-6 rounded-3xl shadow-lg border-2 border-[#D4AF37] text-[#3E2723] relative overflow-hidden mt-4">
-          <div className="absolute top-0 right-0 opacity-10"><EthiopianCross className="w-32 h-32 text-[#8B5A2B] transform rotate-12 translate-x-4 -translate-y-4" /></div>
-          <div className="flex items-center space-x-3 mb-5 border-b border-[#EADDCA] pb-4 relative z-10">
-            <div className="bg-[#8B5A2B] p-2 rounded-xl border border-[#D4AF37]"><Banknote size={20} className="text-[#F5E6D3]" /></div>
-            <h3 className="font-bold text-lg font-serif tracking-wider text-[#3E2723]">  የማሰልጠኛው የገንዘብ ሰነድ </h3>
-          </div>
-          <div className="space-y-4 relative z-10">
-            <div className="flex justify-between items-center px-2"><span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] mr-2"></div> የሚጠበቅ ጠቅላላ ገቢ </span><span className="text-[#8B5A2B] font-black font-serif text-lg">{totalRevenueExpected} <span className="text-xs font-normal"> ብር </span></span></div>
-            <div className="flex justify-between items-center px-2"><span className="text-[#5C4033] text-sm font-bold flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-600 mr-2"></div> የተሰበሰበ ገቢ </span><span className="text-green-700 font-black font-serif text-lg">{totalRevenueCollected} <span className="text-xs font-normal"> ብር </span></span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-5 border-2 border-red-200 shadow-lg relative overflow-hidden mt-4">
-          <div className="absolute -right-4 -bottom-4 text-red-500/5 pointer-events-none"><AlertCircle size={120} /></div>
-          <div className="flex items-center space-x-3 border-b border-red-100 pb-3 mb-4">
-            <div className="bg-red-500 p-2 rounded-xl text-white shadow-md animate-pulse"><AlertTriangle size={20} /></div>
-            <div>
-              <h3 className="font-black text-sm text-red-900 font-serif">ያልተከፈለ ዕዳ ያለባቸው ተማሪዎች</h3>
-              <p className="text-[10px] text-red-600/80 font-bold">እስከ ዛሬዋ ዕለት ድረስ ክፍያ ያጓተቱ ({overdueUnpaidCount})</p>
-            </div>
-          </div>
-          
-          {overdueList.length > 0 ? (
-            <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-              {overdueList.map(student => (
-                <div key={student.id} className="bg-red-50/70 border border-red-100 rounded-2xl p-3 flex justify-between items-center transition-all hover:bg-red-50">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center text-red-800 font-black text-xs">#{student.studentNo}</div>
-                    <div>
-                      <h4 className="text-xs font-extrabold text-[#3E2723]">{student.name}</h4>
-                      <p className="text-[9px] text-red-700 font-black mt-0.5">
-                        ያለበት ዕዳ፦ የ {student.unpaidKeys.length} ወር (<span className="font-mono text-sm ml-0.5">{student.totalArrears} ብር</span>)
-                      </p>
-                    </div>
+        {overdueList.length > 0 ? (
+          <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+            {overdueList.map(student => (
+              <div key={student.id} className="bg-red-50/70 border border-red-100 rounded-2xl p-3 flex justify-between items-center transition-all hover:bg-red-50">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center text-red-800 font-black text-xs">#{student.studentNo}</div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-[#3E2723]">{student.name}</h4>
+                    <p className="text-[9px] text-red-700 font-black mt-0.5">
+                      ያለበት ዕዳ፦ የ {student.unpaidKeys.length} ወር (<span className="font-mono text-sm ml-0.5">{student.totalArrears} ብር</span>)
+                    </p>
                   </div>
-                  <button onClick={() => { setActiveTab('payments'); setPaymentSearch(student.studentNo); }} className="bg-red-700 hover:bg-red-800 text-white text-[10px] font-black px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1">
-                    <CreditCard size={12} /> ወደ ክፍያ
-                  </button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 bg-green-50/50 rounded-2xl border border-green-100 text-green-800"><CheckCircle size={24} className="mx-auto mb-2 text-green-600" /><p className="text-xs font-black">ክብር ለእግዚአብሔር ይሁን! እስካሁን ምንም አይነት የቀድሞ ዕዳ ያለበት ተማሪ የለም።</p></div>
-          )}
-        </div>
+                <button onClick={() => { setActiveTab('payments'); setPaymentSearch(student.studentNo); }} className="bg-red-700 hover:bg-red-800 text-white text-[10px] font-black px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1">
+                  <CreditCard size={12} /> ወደ ክፍያ
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-4 bg-green-50/50 rounded-2xl border border-green-100 text-green-800"><CheckCircle size={24} className="mx-auto mb-2 text-green-600" /><p className="text-xs font-black">ክብር ለእግዚአብሔር ይሁን! እስካሁን ምንም አይነት የቀድሞ ዕዳ ያለበት ተማሪ የለም።</p></div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
   const renderAcademicView = () => {
     let filtered = students.filter(s => {
