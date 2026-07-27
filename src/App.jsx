@@ -57,12 +57,16 @@ const getEthiopianDate = (date = new Date()) => {
   };
 };
 
-// 👇 አዲሱ የተሻሻለ እና ፈጣን የክፍያ ሁኔታ ማረጋገጫ (Performance Optimized) 👇
+// 👇 አዲሱ፣ የተሻሻለው እና ወር ሳይሞላ "አልከፈለም" እንዳይል የሚያደርገው የክፍያ ስሌት 👇
 const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) => {
   const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
   const regDate = new Date(regDateStr);
-  const regEth = getEthiopianDate(isNaN(regDate.getTime()) ? new Date() : regDate);
+  const todayDate = new Date();
   
+  // ተማሪው ከተመዘገበ ስንት ቀን ሆነው?
+  const daysSinceReg = Math.floor((todayDate - regDate) / (1000 * 60 * 60 * 24));
+
+  const regEth = getEthiopianDate(isNaN(regDate.getTime()) ? new Date() : regDate);
   const regY = parseInt(regEth.year, 10);
   const regMIdx = ethiopianMonths.indexOf(regEth.month);
   const dueDay = regEth.day; // የተማሪው መክፈያ ዕለት
@@ -74,7 +78,7 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
   const tMIdx = ethiopianMonths.indexOf(todayEth.month);
   const tD = todayEth.day;
 
-  // 1. በዚህ ወር ክፍያ ይጠበቅበታል ወይ? (የድሮ ወር ከሆነ አይጠበቅም)
+  // 1. በዚህ ወር ክፍያ ይጠበቅበታል ወይ?
   let isEligible = false;
   if (selY > regY) isEligible = true;
   else if (selY === regY && selMIdx >= regMIdx) isEligible = true;
@@ -84,24 +88,31 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
 
   // 2. ክፍያው "አልፏል/ዕዳ ሆኗል" ወይስ "ቀኑ አልደረሰም"?
   let isDue = false;
-  if (selY < tY) isDue = true; // ያለፈ አመት
+  if (selY < tY) isDue = true;
   else if (selY === tY) {
-      if (selMIdx < tMIdx) isDue = true; // ያለፈ ወር
-      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; // የአሁኑ ወር ሆኖ ዛሬው ቀን ከመክፈያ ቀኑ ከበለጠ (ለምሳሌ 25 > 22)
+      if (selMIdx < tMIdx) isDue = true;
+      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; 
+  }
+
+  // 🔴 ዋነኛው መፍትሔ፡ የተመረጠው ወር ተማሪው የተመዘገበበት ወር ከሆነ እና ከ 30 ቀን (ወር) በታች ከሆነ ዕዳ ውስጥ አይገባም (isDue = false ይሆናል)።
+  if (selY === regY && selMIdx === regMIdx && daysSinceReg < 30) {
+      isDue = false;
   }
 
   return { eligible: isEligible, isDue, isPaid, dueDay };
 };
 
-// 👇 የድሮ ዕዳ (Arrears) በከፍተኛ ፍጥነት ማሰሊያ 👇
+// 👇 የድሮ ዕዳ (Arrears) ማሰሊያ 👇
 const getUnpaidMonthsInfo = (student, todayEth) => {
   const amt = Number(student.paymentAmount || 0);
   if (amt <= 0) return { unpaidKeys: [], totalArrears: 0, dueDay: 1 }; // ነፃ ተማሪ
 
   const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
   const regDate = new Date(regDateStr);
+  const todayDate = new Date();
+  const daysSinceReg = Math.floor((todayDate - regDate) / (1000 * 60 * 60 * 24));
+
   const regEth = getEthiopianDate(isNaN(regDate.getTime()) ? new Date() : regDate);
-  
   const regY = parseInt(regEth.year, 10);
   const regMIdx = ethiopianMonths.indexOf(regEth.month);
   const dueDay = regEth.day;
@@ -112,7 +123,6 @@ const getUnpaidMonthsInfo = (student, todayEth) => {
 
   const unpaidKeys = [];
 
-  // ዑደቱ (Loop) የሚጀምረው ከተመዘገበበት ዓመት ጀምሮ እስከ ዛሬ ብቻ ነው (ለከፍተኛ ፍጥነት)
   for (let y = regY; y <= tY; y++) {
       const startMonthIdx = (y === regY) ? regMIdx : 0;
       const endMonthIdx = (y === tY) ? tMIdx : 12;
@@ -125,6 +135,11 @@ const getUnpaidMonthsInfo = (student, todayEth) => {
           else if (y === tY) {
               if (mIdx < tMIdx) isDue = true;
               else if (mIdx === tMIdx && tD >= dueDay) isDue = true;
+          }
+
+          // 30 ቀናት የችሮታ ጊዜ (ለዕዳ ማውጫውም ጭምር)
+          if (y === regY && mIdx === regMIdx && daysSinceReg < 30) {
+              isDue = false;
           }
 
           if (isDue) {
@@ -594,21 +609,21 @@ export default function App() {
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
-  // --- COMPUTATIONS (Optimized) ---
+  // --- COMPUTATIONS (Optimized & Fast) ---
   const activeStudents = students.filter(s => s.status === 'active');
-  const completedStudentsCount = students.filter(s => s.status === 'completed').length;
-  const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
-  const totalActive = activeStudents.length;
-  const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
-  
   const eligiblePaymentStudents = activeStudents.filter(s => {
     const status = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
     return status.eligible && Number(s.paymentAmount || 0) > 0;
   });
 
+  const completedStudentsCount = students.filter(s => s.status === 'completed').length;
+  const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
+  const totalActive = activeStudents.length;
+  const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
+  
   const totalPaidCurrentMonth = eligiblePaymentStudents.filter(student => {
     const status = getPaymentStatusForPeriod(student, selectedYear, selectedMonth, todayEth);
-    return status.isPaid || !status.isDue; // ካልደረሰም ከፋይ እንደሆነ ይቆጠራል
+    return status.isPaid || !status.isDue; 
   }).length;
 
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(student => {
@@ -1137,7 +1152,6 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት የትምህርት እለት </label><input type="text" placeholder="ምሳሌ፦ ቅዳሜ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenDay} onChange={(e) => setNewStudent({...newStudent, chosenDay: e.target.value})} /></div>
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
             </div>
-
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-bold text-[#5C4033] ml-1">ወርሃዊ መዋጮ (ብር)</label>
