@@ -208,7 +208,7 @@ export default function App() {
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', instrumentType: 'በገና', duration: '3 ወር',
-    chosenDay: '', chosenTime: '', paymentAmount: '', photo: '', status: 'active', examResult: '',
+    chosenDay: '', chosenTime: '', paymentAmount: '', isFree: false, photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
@@ -371,12 +371,20 @@ export default function App() {
 
   const startEditingProfile = (student) => {
     setEditFormData({
-      name: student.name, christian_name: student.christianName || '', phone: student.phone || '',
-      emergency_contact_name: student.emergencyContactName || '', emergency_contact_phone: student.emergencyContactPhone || '',
-      work_status: student.workStatus || 'ተማሪ', church_service: student.churchService || '', parish: student.parish || '',
-      instrument_type: student.instrumentType || 'በገና', duration: student.duration || '3 ወር',
-      chosen_day: student.chosenDay || '', chosen_time: student.chosenTime || '',
+      name: student.name,
+      christian_name: student.christianName || '',
+      phone: student.phone || '',
+      emergency_contact_name: student.emergencyContactName || '',
+      emergency_contact_phone: student.emergencyContactPhone || '',
+      work_status: student.workStatus || 'ተማሪ',
+      church_service: student.churchService || '',
+      parish: student.parish || '',
+      instrument_type: student.instrumentType || 'በገና',
+      duration: student.duration || '3 ወር',
+      chosen_day: student.chosenDay || '',
+      chosen_time: student.chosenTime || '',
       payment_amount: student.paymentAmount !== undefined ? student.paymentAmount : '',
+      isFree: Number(student.paymentAmount || 0) === 0, // ነፃ ተማሪ መሆኑን መለየት
       registration_date: student.registrationDate || ''
     });
     setIsEditingProfile(true);
@@ -388,7 +396,23 @@ export default function App() {
       return;
     }
     triggerConfirmation('የተማሪውን መረጃ በእርግጥ ማስተካከል (Save) ይፈልጋሉ?', 'መረጃ ማስተካከያ', async () => {
-      const payload = { ...editFormData, payment_amount: Number(editFormData.payment_amount || 0) };
+      const payload = { 
+        name: editFormData.name,
+        christian_name: editFormData.christian_name,
+        phone: editFormData.phone,
+        emergency_contact_name: editFormData.emergency_contact_name,
+        emergency_contact_phone: editFormData.emergency_contact_phone,
+        work_status: editFormData.work_status,
+        church_service: editFormData.church_service,
+        parish: editFormData.parish,
+        instrument_type: editFormData.instrument_type,
+        duration: editFormData.duration,
+        chosen_day: editFormData.chosen_day,
+        chosen_time: editFormData.chosen_time,
+        payment_amount: editFormData.isFree ? 0 : Number(editFormData.payment_amount || 0), // ቲክ ካደረገ 0 ብር
+        registration_date: editFormData.registration_date 
+      };
+      
       const success = await updateStudentInDb(studentId, payload);
       if (success) {
         showNotification('የተማሪው መረጃ በተሳካ ሁኔታ ተስተካክሏል!', 'success');
@@ -439,6 +463,11 @@ export default function App() {
   const handleAddStudentSubmit = (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
+    if (!newStudent.isFree && !newStudent.paymentAmount) {
+      showNotification("እባክዎ ወርሃዊ ክፍያ ያስገቡ ወይም ነፃ የሚለውን ይምረጡ!", "error");
+      return;
+    }
+
     triggerConfirmation(`አዲስ ተማሪ "${newStudent.name}" ለመመዝገብ መረጃው ትክክል መሆኑን ያረጋግጣሉ?`, 'የተማሪ ምዝገባ ማረጋገጫ', async () => {
         const nextNo = generateNextStudentNo();
         const studentToInsert = {
@@ -446,7 +475,8 @@ export default function App() {
           emergency_contact_name: newStudent.emergencyContactName, emergency_contact_phone: newStudent.emergencyContactPhone,
           work_status: newStudent.workStatus, church_service: newStudent.churchService, parish: newStudent.parish,
           instrument_type: newStudent.instrumentType, duration: newStudent.duration, chosen_day: newStudent.chosenDay, chosen_time: newStudent.chosenTime,
-          payment_amount: Number(newStudent.paymentAmount || 0), photo: newStudent.photo, status: 'active', exam_result: '',
+          payment_amount: newStudent.isFree ? 0 : Number(newStudent.paymentAmount || 0), // ቲክ ካደረገ 0 ብር
+          photo: newStudent.photo, status: 'active', exam_result: '',
           registration_date: newStudent.registrationDate, payments: {}, attendance: {}, lesson_progress: {}
         };
         const { error } = await supabase.from('students').insert([studentToInsert]);
@@ -787,10 +817,31 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">ክፍያ (ብር)</label><input type="number" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_amount} onChange={e=>setEditFormData({...editFormData, payment_amount: e.target.value})}/></div>
-                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label><input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/></div>
+                
+                {/* 👇 የተስተካከለው የነፃ ተማሪ መምረጫ (Edit Profile) 👇 */}
+                <div className="grid grid-cols-2 gap-2 mt-2 border-t border-dashed border-[#D2B48C] pt-2">
+                   <div>
+                     <div className="flex justify-between items-center mb-1">
+                       <label className="text-[10px] font-black text-[#5C4033]">ክፍያ (ብር)</label>
+                       <label className="flex items-center space-x-1 text-[9px] font-black text-blue-700 cursor-pointer bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                         <input type="checkbox" checked={editFormData.isFree} onChange={(e) => setEditFormData({...editFormData, isFree: e.target.checked, payment_amount: e.target.checked ? '' : editFormData.payment_amount})} className="accent-blue-600 w-3 h-3"/>
+                         <span>ነፃ</span>
+                       </label>
+                     </div>
+                     {!editFormData.isFree ? (
+                       <input type="number" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_amount} onChange={e=>setEditFormData({...editFormData, payment_amount: e.target.value})}/>
+                     ) : (
+                       <div className="w-full border border-gray-200 bg-gray-100 p-2 rounded-lg text-[10px] font-bold text-gray-500 flex items-center justify-center">
+                          ነፃ ተማሪ
+                       </div>
+                     )}
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label>
+                     <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
+                   </div>
                 </div>
+
                 <div>
                    <label className="text-[10px] font-black text-[#5C4033] block mb-1">የስራ ሁኔታ</label>
                    <div className="flex gap-4">
@@ -1017,7 +1068,6 @@ export default function App() {
     );
   };
 
-  // 👇 ቀደም ሲል ተቆርጦ የቀረበው የ 'መረጃ' (Academic) ገፅ ተመልሷል 👇
   const renderAcademicView = () => {
     const filteredInfoStudents = students.filter(s => s.status === academicViewType && (s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch))));
     return (
@@ -1108,7 +1158,6 @@ export default function App() {
     );
   };
 
-  // 👇 ቀደም ሲል ተቆርጦ የቀረበው የ 'አታኦስ' (Lessons) ገፅ ተመልሷል 👇
   const renderLessonsView = () => {
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
@@ -1498,120 +1547,7 @@ export default function App() {
     );
   };
 
-  const renderRegistrationView = () => (
-    <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-      <div className="text-center mb-4">
-        <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-          <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" />  የመመዝገቢያ ቃል ኪዳን
-        </h2>
-        <p className="text-xs text-[#8B5A2B] font-bold mt-1"> አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
-      </div>
-
-      <form onSubmit={handleAddStudentSubmit} className="space-y-4">
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C] flex flex-col items-center">
-          <div className="relative group cursor-pointer mb-2">
-            <div className="w-28 h-28 bg-white/80 rounded-2xl border-2 border-dashed border-[#8B5A2B] flex flex-col items-center justify-center overflow-hidden shadow-inner">
-              {newStudent.photo ? (
-                <img src={newStudent.photo} alt="Student Preview" className="w-full h-full object-cover"/>
-              ) : (
-                <div className="flex flex-col items-center text-[#8B5A2B]">
-                  <Camera size={28} className="mb-1" />
-                  <span className="text-[10px] font-black"> ፎቶ ያክሉ </span>
-                </div>
-              )}
-            </div>
-            <input type="file" accept="image/*" onChange={handlePhotoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center">
-            <User size={16} className="mr-2 text-[#8B5A2B]"/> የተመዝጋቢው የግል መረጃ 
-          </h3>
-          <div className="space-y-3">
-            <div className="bg-amber-50/60 p-3 rounded-2xl border border-[#D2B48C] mb-2">
-              <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1 flex items-center">
-                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
-              </label>
-              <input 
-                type="date" 
-                required 
-                className="w-full px-4 py-2.5 bg-white rounded-xl border border-[#D2B48C] text-xs font-bold text-[#3E2723] focus:ring-1 focus:ring-[#8B5A2B] focus:outline-none" 
-                value={newStudent.registrationDate} 
-                onChange={(e) => setNewStudent({...newStudent, registrationDate: e.target.value})} 
-              />
-              <p className="text-[10px] text-gray-500 mt-1 pl-1">ይህ ቀን የተማሪውን የወር ክፍያ ማሳሰቢያ ዑደት ለማስላት በቁልፍነት ያገለግላል።</p>
-            </div>
-
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የክርስትና ስም </label><input type="text" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.christianName} onChange={(e) => setNewStudent({...newStudent, christianName: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ስልክ ቁጥር <span className="text-red-500">*</span></label><input type="tel" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.phone} onChange={(e) => setNewStudent({...newStudent, phone: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስም </label><input type="text" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactName} onChange={(e) => setNewStudent({...newStudent, emergencyContactName: e.target.value})} /></div>
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስልክ </label><input type="tel" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactPhone} onChange={(e) => setNewStudent({...newStudent, emergencyContactPhone: e.target.value})} /></div>
-            </div>
-            <div className="pt-2">
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1"> የስራ ሁኔታ </label>
-              <div className="flex space-x-6 px-2">
-                <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ተማሪ" checked={newStudent.workStatus === 'ተማሪ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ተማሪ </span></label>
-                <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ሰራተኛ" checked={newStudent.workStatus === 'ሰራተኛ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ሰራተኛ </span></label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><Church size={16} className="mr-2 text-[#8B5A2B]"/> መንፈሳዊ ህይወት መረጃ </h3>
-          <div className="space-y-4">
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> አገልግሎት ክፍል (ካለዎት)</label><input type="text" placeholder="ምሳሌ፦ መዘምራን፣ ሰንበት ተማሪ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.churchService} onChange={(e) => setNewStudent({...newStudent, churchService: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመጡበት አጥቢያ ደብር </label><input type="text" placeholder="ምሳሌ፦ ቅድስት ማርያም" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.parish} onChange={(e) => setNewStudent({...newStudent, parish: e.target.value})} /></div>
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><BookOpen size={16} className="mr-2 text-[#8B5A2B]"/> የዜማ ትምህርት ምርጫ </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center"><Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት </label>
-              <div className="relative">
-                <select 
-                  value={newStudent.instrumentType} 
-                  onChange={(e) => setNewStudent({...newStudent, instrumentType: e.target.value})} 
-                  className="appearance-none w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723] focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]"
-                >
-                  {instrumentsList.map(inst => (
-                    <option key={inst} value={inst}>{inst}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-3.5 text-[#8B5A2B] pointer-events-none" size={16} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1 mt-2"> የትምህርት ቆይታ ርቀት </label>
-              <div className="flex flex-wrap gap-4 px-2">
-                {['3 ወር', '6 ወር', '9 ወር'].map((dur) => (
-                  <label key={dur} className="flex items-center space-x-1.5 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="duration" value={dur} checked={newStudent.duration === dur} onChange={(e) => setNewStudent({...newStudent, duration: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span>{dur}</span></label>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት የትምህርት እለት </label><input type="text" placeholder="ምሳሌ፦ ቅዳሜ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenDay} onChange={(e) => setNewStudent({...newStudent, chosenDay: e.target.value})} /></div>
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
-            </div>
-            <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
-              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ወርሃዊ መዋጮ (0 ካደረጉ ነፃ ይሆናል)</label>
-              <input type="number" required placeholder="500" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.paymentAmount} onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} />
-            </div>
-          </div>
-        </div>
-
-        <button type="submit" className="w-full bg-gradient-to-r from-[#8B5A2B] via-[#4A2E12] to-[#5C4033] text-white font-black py-4 rounded-2xl shadow-lg hover:shadow-xl hover:border-[#D4AF37] border border-transparent transition-all active:scale-95 mt-4 text-sm font-serif tracking-widest relative z-10">
-          የተማሪውን ሰነድ መዝግብ
-        </button>
-      </form>
-    </div>
-  );
-
+  // --- Auth Loading Screen ---
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
@@ -1640,7 +1576,6 @@ export default function App() {
       {renderAiModal()}
 
       <div className="app-ui hide-on-print min-h-screen bg-[#FAF6EE] flex flex-col pb-24 relative overflow-x-hidden">
-        
         <header className="bg-[#3E2723] text-white px-4 py-3 flex justify-between items-center border-b-4 border-[#D4AF37] shadow-md relative z-20">
           <div className="flex items-center space-x-2">
             <EthiopianCross className="w-5 h-5 text-[#D4AF37]" />
