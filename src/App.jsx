@@ -13,13 +13,13 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+
 // --- Ethiopian Real-time Date Calculation Function ---
 const getEthiopianDate = (date = new Date()) => {
   const gYear = date.getFullYear();
   const gMonth = date.getMonth() + 1;
   const gDay = date.getDate();
-
-  const months = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
 
   const isGregLeap = (gYear % 4 === 0 && gYear % 100 !== 0) || (gYear % 400 === 0);
   const gMonthDays = [0, 31, isGregLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -50,9 +50,30 @@ const getEthiopianDate = (date = new Date()) => {
 
   return {
     year: String(eYear),
-    month: months[eMonthIdx] || 'መስከረም',
+    month: ethiopianMonths[eMonthIdx] || 'መስከረም',
     day: eDay
   };
+};
+
+// ---------------- የክፍያ ወር እና የመመዝገቢያ ወር ማወዳደሪያ ፋንክሽን ----------------
+const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) => {
+  if (!studentRegDateStr) return true;
+  
+  const regDate = new Date(studentRegDateStr);
+  if (isNaN(regDate.getTime())) return true;
+  
+  const regEth = getEthiopianDate(regDate);
+  
+  const regYear = parseInt(regEth.year, 10);
+  const selYear = parseInt(selYearStr, 10);
+  
+  if (selYear < regYear) return false;
+  if (selYear > regYear) return true;
+  
+  const regMonthIndex = ethiopianMonths.indexOf(regEth.month);
+  const selMonthIndex = ethiopianMonths.indexOf(selMonthStr);
+  
+  return selMonthIndex >= regMonthIndex;
 };
 
 // --- Custom Spiritual Icons & SVG Rebuilding ---
@@ -139,7 +160,6 @@ export default function App() {
   const [academicViewType, setAcademicViewType] = useState('active');
 
   const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
-  const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
   // የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ
@@ -149,9 +169,8 @@ export default function App() {
   const [selectedDay, setSelectedDay] = useState(todayEth.day);
   const currentPeriodKey = `${selectedYear}_${selectedMonth}`;
 
-  // 👇 ለዳሽቦርድ ለይቶ ማሳያ አዳዲስ ስቴቶች 👇
-  const [attendanceFilter, setAttendanceFilter] = useState('all'); // 'all', 'present', 'absent'
-  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all', 'paid', 'unpaid'
+  const [attendanceFilter, setAttendanceFilter] = useState('all'); 
+  const [paymentFilter, setPaymentFilter] = useState('all'); 
 
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -332,6 +351,7 @@ export default function App() {
   const getOverdueStudents = () => {
     return students.filter(student => {
       if (student.status !== 'active') return false;
+      if (!isEligibleForPaymentPeriod(student.registrationDate, selectedYear, selectedMonth)) return false;
       const days = getDaysSinceRegistration(student.registrationDate);
       const isUnpaid = !student.payments[currentPeriodKey];
       return days >= 30 && isUnpaid;
@@ -741,16 +761,27 @@ export default function App() {
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
-  // --- Computations ---
+  // ---------------- COMPUTATIONS (የተስተካከለ ስሌት) ----------------
   const activeStudents = students.filter(s => s.status === 'active');
+  
+  // 👇 ከተመዘገቡበት ወር ጀምሮ ላለው ጊዜ ብቻ ክፍያ የሚጠበቅባቸው ተማሪዎች 👇
+  const eligiblePaymentStudents = activeStudents.filter(s => 
+    isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth)
+  );
+
   const completedStudentsCount = students.filter(s => s.status === 'completed').length;
   const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
   const totalActive = activeStudents.length;
+  
   const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
-  const totalPaidCurrentMonth = activeStudents.filter(s => s.payments[currentPeriodKey]).length;
-  const totalUnpaidCurrentMonth = totalActive - totalPaidCurrentMonth;
-  const totalRevenueExpected = activeStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
-  const totalRevenueCollected = activeStudents.filter(s => s.payments[currentPeriodKey]).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
+  
+  // የከፈሉ እና ያልከፈሉ ስሌት ከተመዘገቡበት ወር ወደዚህ ላለው ብቻ ይፈጸማል
+  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
+  const totalUnpaidCurrentMonth = eligiblePaymentStudents.length - totalPaidCurrentMonth;
+  
+  const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
+  const totalRevenueCollected = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
+  
   const overdueUnpaidCount = getOverdueStudents().length;
 
   // --- Views Renders ---
@@ -1397,7 +1428,7 @@ export default function App() {
           <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
         </div>
 
-        {/* ---------------- DASHBOARD INTERACTIVE CARDS ---------------- */}
+        {/* DASHBOARD INTERACTIVE CARDS */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div>
@@ -1420,7 +1451,6 @@ export default function App() {
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span>
           </div>
           
-          {/* 👇 ዛሬ የተገኙት ብቻ እንዲታዩ መለያ 👇 */}
           <div onClick={() => { setActiveTab('attendance'); setAttendanceFilter('present'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div>
             <CheckSquare size={24} className="mb-2 text-green-700" />
@@ -1428,7 +1458,6 @@ export default function App() {
             <span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span>
           </div>
           
-          {/* 👇 የከፈሉት ብቻ እንዲታዩ መለያ 👇 */}
           <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div>
             <CreditCard size={24} className="mb-2 text-[#D4AF37]" />
@@ -1436,7 +1465,6 @@ export default function App() {
             <span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span>
           </div>
           
-          {/* 👇 ያልከፈሉት ብቻ እንዲታዩ መለያ 👇 */}
           <div onClick={() => { setActiveTab('payments'); setPaymentFilter('unpaid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1">
             <div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div>
             <XCircle size={24} className="mb-2 text-red-700" />
@@ -1456,7 +1484,7 @@ export default function App() {
               </h3>
             </div>
             <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
-              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት (<span className="font-bold text-blue-700">{selectedMonth} {selectedDay} ቀን</span>) ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
+              መምህር ሆይ፣ በ <span className="font-bold text-[#8B5A2B]">{selectedYear} ዓ.ም</span> የ <span className="font-bold text-[#8B5A2B]">{selectedMonth}</span> ወር የትምህርት ቤትዎ ሁኔታ ማጠቃለያ እንደሚከተለው ነው፦ በአጠቃላይ <span className="font-bold text-[#8B5A2B]">{totalActive}</span> ተማሪዎች በመማር ላይ ይገኛሉ። ከእነዚህም ውስጥ በ {selectedMonth} ወር ክፍያ የሚጠበቅባቸው <span className="font-bold text-[#8B5A2B]">{eligiblePaymentStudents.length}</span> ሲሆኑ፣ <span className="font-bold text-green-700">{totalPaidCurrentMonth}</span> ተማሪዎች ክፍያቸውን ያጠናቀቁ ሲሆን፣ <span className="font-bold text-red-700">{totalUnpaidCurrentMonth}</span> ተማሪዎች ደግሞ ክፍያ ገና አልፈጸሙም። በዛሬው ዕለት (<span className="font-bold text-blue-700">{selectedMonth} {selectedDay} ቀን</span>) ደግሞ <span className="font-bold text-blue-700">{totalPresentToday}</span> ተማሪዎች በትምህርት ገበታቸው ላይ ተገኝተዋል። እግዚአብሔር ለአገልግሎትዎ ኃይልን ይስጥዎት!
             </p>
           </div>
         </div>
@@ -1487,7 +1515,7 @@ export default function App() {
             </div>
             <div>
               <h3 className="font-black text-sm text-red-900 font-serif">የክፍያ ጊዜያቸው ያለፈባቸው ተማሪዎች ማስታወቂያ</h3>
-              <p className="text-[10px] text-red-600/80 font-bold">ከተመዘገቡ ወይም ከከፈሉ ወር የሞላቸውና ክፍያ ያልፈጸሙ ({overdueUnpaidCount})</p>
+              <p className="text-[10px] text-red-600/80 font-bold">ከተመዘገቡ በኋላ ወር የሞላቸውና ክፍያ ያልፈጸሙ ({overdueUnpaidCount})</p>
             </div>
           </div>
           
@@ -1830,7 +1858,6 @@ export default function App() {
       (s.studentNo && s.studentNo.includes(attendanceSearch))
     );
 
-    // 👇 ለይቶ ማሳያ ማጣሪያ (Filter) 👇
     if (attendanceFilter === 'present') {
       filteredStudents = filteredStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]);
     } else if (attendanceFilter === 'absent') {
@@ -1849,7 +1876,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* ማጣሪያ ቁልፎች (Filter Buttons) */}
         <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
           <button onClick={() => setAttendanceFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም</button>
           <button onClick={() => setAttendanceFilter('present')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'present' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የተገኙ ብቻ</button>
@@ -1880,7 +1906,7 @@ export default function App() {
           {filteredStudents.map(student => {
             const isPresent = student.attendance?.[currentPeriodKey]?.[selectedDay] || false;
             return (
-              <div key={student.id} className="flex items-center justify-between p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
+              <div key={student.id} className="flex items-center justify-between p-[#FAF3E0] bg-white rounded-3xl shadow-md border-2 border-[#EADDCA] p-4">
                 <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-4 cursor-pointer">
                   <div className="relative">
                     <div className="w-12 h-12 bg-[#F5E6D3] rounded-2xl flex items-center justify-center border-2 border-[#D2B48C] overflow-hidden">
@@ -1909,12 +1935,16 @@ export default function App() {
   };
 
   const renderPaymentsView = () => {
-    let filteredPaymentStudents = activeStudents.filter(s => 
+    // 👇 ከተመዘገቡበት ወር ጀምሮ ወደዚህ የተመዘገቡትን ብቻ በክፍያ ገጽ ማሳየት 👇
+    const eligibleForMonth = activeStudents.filter(s => 
+      isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth)
+    );
+
+    let filteredPaymentStudents = eligibleForMonth.filter(s => 
       s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || 
       (s.studentNo && s.studentNo.includes(paymentSearch))
     );
 
-    // 👇 ለይቶ ማሳያ ማጣሪያ (Filter) 👇
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey]);
     } else if (paymentFilter === 'unpaid') {
@@ -1926,18 +1956,17 @@ export default function App() {
         <div className="flex justify-between items-center mb-2">
           <div>
             <h2 className="text-xl font-black text-[#3E2723] font-serif"> የክፍያ ቁጥጥር መዝገብ </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> ወርሃዊ መዋጮ መከታተያ </p>
+            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> ወርሃዊ መዋጮ መከታተያ ({selectedMonth} {selectedYear}) </p>
           </div>
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors">
             <Printer size={14} /> ሪፖርት
           </button>
         </div>
 
-        {/* ማጣሪያ ቁልፎች (Filter Buttons) */}
         <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
-          <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም</button>
-          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ ብቻ</button>
-          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ ብቻ</button>
+          <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({eligibleForMonth.length})</button>
+          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ</button>
+          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
         <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
@@ -1980,7 +2009,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ወር ክፍያ የሚጠበቅበት ወይም የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
@@ -2064,7 +2093,7 @@ export default function App() {
           </button>
         )}
 
-        {/* Beautiful Bottom Navigation Menu Bar */}
+        {/* Bottom Navigation Menu Bar */}
         <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] px-2 py-2 flex justify-between items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
           {[
             { id: 'dashboard', icon: Home, label: 'ዋና' },
@@ -2078,7 +2107,6 @@ export default function App() {
               key={item.id} 
               onClick={() => {
                 setActiveTab(item.id);
-                // ከታች ባለው ሜኑ ሲገባ ማጣሪያውን ወደ ሁሉም (All) ይመልሰዋል
                 if (item.id === 'attendance') setAttendanceFilter('all');
                 if (item.id === 'payments') setPaymentFilter('all');
               }} 
