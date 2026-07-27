@@ -57,16 +57,23 @@ const getEthiopianDate = (date = new Date()) => {
   };
 };
 
-// 👇 አዲሱ፣ የተሻሻለው እና ወር ሳይሞላ "አልከፈለም" እንዳይል የሚያደርገው የክፍያ ስሌት 👇
+// 🛑 ፍለጋው ነጭ ስክሪን እንዳያመጣ የሚከላከል (Crash-proof Search) 🛑
+const safeIncludes = (value, searchTerm) => {
+  if (!searchTerm) return true;
+  return String(value || '').toLowerCase().includes(String(searchTerm).toLowerCase());
+};
+
+// 👇 አዲሱ የተሻሻለ እና ፈጣን የክፍያ ሁኔታ ማረጋገጫ (Performance Optimized) 👇
 const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) => {
   const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
   const regDate = new Date(regDateStr);
+  const safeRegDate = isNaN(regDate.getTime()) ? new Date() : regDate;
   const todayDate = new Date();
   
   // ተማሪው ከተመዘገበ ስንት ቀን ሆነው?
-  const daysSinceReg = Math.floor((todayDate - regDate) / (1000 * 60 * 60 * 24));
+  const daysSinceReg = Math.floor((todayDate - safeRegDate) / (1000 * 60 * 60 * 24));
 
-  const regEth = getEthiopianDate(isNaN(regDate.getTime()) ? new Date() : regDate);
+  const regEth = getEthiopianDate(safeRegDate);
   const regY = parseInt(regEth.year, 10);
   const regMIdx = ethiopianMonths.indexOf(regEth.month);
   const dueDay = regEth.day; // የተማሪው መክፈያ ዕለት
@@ -78,7 +85,7 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
   const tMIdx = ethiopianMonths.indexOf(todayEth.month);
   const tD = todayEth.day;
 
-  // 1. በዚህ ወር ክፍያ ይጠበቅበታል ወይ?
+  // 1. በዚህ ወር ክፍያ ይጠበቅበታል ወይ? (የድሮ ወር ከሆነ አይጠበቅም)
   let isEligible = false;
   if (selY > regY) isEligible = true;
   else if (selY === regY && selMIdx >= regMIdx) isEligible = true;
@@ -88,13 +95,13 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
 
   // 2. ክፍያው "አልፏል/ዕዳ ሆኗል" ወይስ "ቀኑ አልደረሰም"?
   let isDue = false;
-  if (selY < tY) isDue = true;
+  if (selY < tY) isDue = true; // ያለፈ አመት
   else if (selY === tY) {
-      if (selMIdx < tMIdx) isDue = true;
-      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; 
+      if (selMIdx < tMIdx) isDue = true; // ያለፈ ወር
+      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true; // የአሁኑ ወር ሆኖ ዛሬው ቀን ከመክፈያ ቀኑ ከበለጠ (ለምሳሌ 25 > 22)
   }
 
-  // 🔴 ዋነኛው መፍትሔ፡ የተመረጠው ወር ተማሪው የተመዘገበበት ወር ከሆነ እና ከ 30 ቀን (ወር) በታች ከሆነ ዕዳ ውስጥ አይገባም (isDue = false ይሆናል)።
+  // 🔴 30 ቀናት ሳይሞላው "አልከፈለም" እንዳይል የሚከለክለው ወሳኝ ሎጂክ
   if (selY === regY && selMIdx === regMIdx && daysSinceReg < 30) {
       isDue = false;
   }
@@ -102,17 +109,18 @@ const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) =
   return { eligible: isEligible, isDue, isPaid, dueDay };
 };
 
-// 👇 የድሮ ዕዳ (Arrears) ማሰሊያ 👇
+// 👇 የድሮ ዕዳ (Arrears) በከፍተኛ ፍጥነት ማሰሊያ 👇
 const getUnpaidMonthsInfo = (student, todayEth) => {
   const amt = Number(student.paymentAmount || 0);
   if (amt <= 0) return { unpaidKeys: [], totalArrears: 0, dueDay: 1 }; // ነፃ ተማሪ
 
   const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
   const regDate = new Date(regDateStr);
+  const safeRegDate = isNaN(regDate.getTime()) ? new Date() : regDate;
   const todayDate = new Date();
-  const daysSinceReg = Math.floor((todayDate - regDate) / (1000 * 60 * 60 * 24));
+  const daysSinceReg = Math.floor((todayDate - safeRegDate) / (1000 * 60 * 60 * 24));
 
-  const regEth = getEthiopianDate(isNaN(regDate.getTime()) ? new Date() : regDate);
+  const regEth = getEthiopianDate(safeRegDate);
   const regY = parseInt(regEth.year, 10);
   const regMIdx = ethiopianMonths.indexOf(regEth.month);
   const dueDay = regEth.day;
@@ -123,12 +131,14 @@ const getUnpaidMonthsInfo = (student, todayEth) => {
 
   const unpaidKeys = [];
 
+  // ዑደቱ (Loop) የሚጀምረው ከተመዘገበበት ዓመት ጀምሮ እስከ ዛሬ ብቻ ነው (ለከፍተኛ ፍጥነት)
   for (let y = regY; y <= tY; y++) {
       const startMonthIdx = (y === regY) ? regMIdx : 0;
       const endMonthIdx = (y === tY) ? tMIdx : 12;
       
       for (let mIdx = startMonthIdx; mIdx <= endMonthIdx; mIdx++) {
           const mName = ethiopianMonths[mIdx];
+          if (!mName) continue;
           
           let isDue = false;
           if (y < tY) isDue = true;
@@ -611,6 +621,7 @@ export default function App() {
 
   // --- COMPUTATIONS (Optimized & Fast) ---
   const activeStudents = students.filter(s => s.status === 'active');
+  
   const eligiblePaymentStudents = activeStudents.filter(s => {
     const status = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
     return status.eligible && Number(s.paymentAmount || 0) > 0;
@@ -806,6 +817,7 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-2 mt-2 border-t border-dashed border-[#D2B48C] pt-2">
                    <div>
                      <div className="flex justify-between items-center mb-1">
@@ -1152,6 +1164,7 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት የትምህርት እለት </label><input type="text" placeholder="ምሳሌ፦ ቅዳሜ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenDay} onChange={(e) => setNewStudent({...newStudent, chosenDay: e.target.value})} /></div>
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
             </div>
+
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-bold text-[#5C4033] ml-1">ወርሃዊ መዋጮ (ብር)</label>
@@ -1195,7 +1208,7 @@ export default function App() {
   );
 
   const renderAcademicView = () => {
-    const filteredInfoStudents = students.filter(s => s.status === academicViewType && ((s.name || '').toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo || '').includes(infoSearch)));
+    const filteredInfoStudents = students.filter(s => s.status === academicViewType && safeIncludes(s.name, infoSearch) || safeIncludes(s.studentNo, infoSearch));
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1220,7 +1233,7 @@ export default function App() {
         </div>
 
         <div className="space-y-4">
-          {filteredInfoStudents.map(student => (
+          {filteredInfoStudents.filter(s => s.status === academicViewType).map(student => (
             <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
               <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
                 <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
@@ -1278,7 +1291,7 @@ export default function App() {
               </div>
             </div>
           ))}
-          {filteredInfoStudents.length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
+          {filteredInfoStudents.filter(s => s.status === academicViewType).length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
         </div>
       </div>
     );
@@ -1375,10 +1388,7 @@ export default function App() {
   };
 
   const renderAttendanceView = () => {
-    let filteredStudents = activeStudents.filter(s => 
-      (s.name || '').toLowerCase().includes(attendanceSearch.toLowerCase()) || 
-      (s.studentNo && s.studentNo.includes(attendanceSearch))
-    );
+    let filteredStudents = activeStudents.filter(s => safeIncludes(s.name, attendanceSearch) || safeIncludes(s.studentNo, attendanceSearch));
 
     if (attendanceFilter === 'present') {
       filteredStudents = filteredStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]);
@@ -1458,7 +1468,7 @@ export default function App() {
 
   const renderPaymentsView = () => {
     const eligibleForMonth = activeStudents.filter(s => getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth).eligible);
-    let filteredPaymentStudents = eligibleForMonth.filter(s => (s.name || '').toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
+    let filteredPaymentStudents = eligibleForMonth.filter(s => safeIncludes(s.name, paymentSearch) || safeIncludes(s.studentNo, paymentSearch));
 
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
@@ -1543,148 +1553,6 @@ export default function App() {
             );
           })}
           {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
-        </div>
-      </div>
-    );
-  };
-
-  const renderReportModal = () => {
-    if (!reportConfig.show) return null;
-
-    let displayedStudentsForReport = [...students];
-    if (reportConfig.statusFilter !== 'all') {
-      displayedStudentsForReport = students.filter(s => s.status === reportConfig.statusFilter);
-    }
-
-    const filterTitles = {
-      all: 'የሁሉም ተማሪዎች',
-      active: 'በትምህርት ገበታ ላይ ያሉ (Active) ተማሪዎች',
-      completed: 'ትምህርታቸውን ያጠናቀቁ (ምሩቃን)',
-      dropped: 'ትምህርት ያቋረጡ (የቆረጡ)'
-    };
-
-    return (
-      <div className="fixed inset-0 bg-white z-[150] overflow-y-auto hide-on-print-bg">
-        <div className="sticky top-0 bg-[#3E2723] text-white p-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shadow-md hide-on-print z-50 border-b-4 border-[#D4AF37]">
-          <div className="flex items-center space-x-2">
-            <BegenaIcon className="w-6 h-6 text-[#D4AF37]" />
-            <span className="font-bold font-serif text-[#FFF8E7] text-sm sm:text-base">
-              የክፍል ሪፖርት ማመንጫ ማሽን
-            </span>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-[#D4AF37] font-bold">ሪፖርት ለይቶ ማውጫ፦</span>
-            <div className="bg-[#FAF3E0]/15 p-1 rounded-lg flex gap-1 border border-white/20">
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'all'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'all' ? 'bg-[#8B5A2B] text-white' : 'text-gray-300 hover:text-white'}`}>ሁሉንም</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'active'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'active' ? 'bg-[#8B5A2B] text-white' : 'text-gray-300 hover:text-white'}`}>በመማር ላይ</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'dropped'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'dropped' ? 'bg-red-700 text-white' : 'text-gray-300 hover:text-white'}`}>የቆረጡ</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'completed'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'completed' ? 'bg-green-700 text-white' : 'text-gray-300 hover:text-white'}`}>ምሩቃን</button>
-            </div>
-          </div>
-
-          <div className="flex gap-2 justify-end">
-            <button onClick={copyReportToClipboard} className="bg-[#8B5A2B] hover:bg-[#5C4033] px-3 py-2 rounded-lg text-xs font-bold flex items-center"><Copy size={14} className="mr-1"/> ኮፒ </button>
-            <button onClick={triggerWindowPrint} className="bg-[#006400] hover:bg-green-800 px-4 py-2 rounded-lg text-xs font-bold flex items-center"><Printer size={16} className="mr-1"/> አትም </button>
-            <button onClick={() => setReportConfig({show: false, type: 'general', statusFilter: 'all'})} className="bg-red-600 px-3 py-2 rounded-lg ml-2"><X size={16} /></button>
-          </div>
-        </div>
-        
-        <div id="printable-area" className="max-w-4xl mx-auto bg-white text-black p-8 font-serif">
-          <div className="text-center mb-8 border-b-2 border-black pb-4">
-            <div className="flex justify-center mb-2"><EthiopianCross className="w-10 h-10 text-[#8B5A2B]" /></div>
-            <h2 className="text-2xl font-black mb-1"> አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም </h2>
-            <h3 className="text-lg font-bold text-[#8B5A2B]">
-              {filterTitles[reportConfig.statusFilter]} - {reportConfig.type === 'general' ? 'አጠቃላይ ሪፖርት' : reportConfig.type === 'attendance' ? 'የመገኘት ሪፖርት' : reportConfig.type === 'payment' ? 'የክፍያ ሪፖርት' : 'ሁኔታና ውጤት ሪፖርት'}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500"> ዓ.ም: {selectedYear} | ወር: {selectedMonth} | ቀን: {new Date().toLocaleDateString('am-ET')}</p>
-          </div>
-
-          {reportConfig.type === 'general' && (
-            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <h3 className="text-base font-black border-b border-gray-300 mb-3 pb-1"> ማጠቃለያ </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><span className="font-bold"> በዚህ ሪፖርት ላይ ያሉ ተማሪዎች ድምር:</span> {displayedStudentsForReport.length} ተማሪ</p>
-                  <p><span className="font-bold"> በመማር ላይ ያሉ ድምር:</span> {displayedStudentsForReport.filter(s => s.status === 'active').length}</p>
-                </div>
-                <div>
-                  <p><span className="font-bold"> ክፍያ የፈጸሙ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && s.payments[currentPeriodKey]).length}</p>
-                  <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <table className="w-full border-collapse border border-gray-300 text-left text-xs sm:text-sm">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700">
-                <th className="border border-gray-300 p-2"> መ.ቁ </th>
-                <th className="border border-gray-300 p-2"> ሙሉ ስም </th>
-                <th className="border border-gray-300 p-2"> ስልክ </th>
-                <th className="border border-gray-300 p-2"> የተመዘገቡበት ቀን </th>
-                <th className="border border-gray-300 p-2"> መሳሪያ </th>
-                {reportConfig.type !== 'academic' && <>
-                  {(reportConfig.type === 'general' || reportConfig.type === 'payment') && <th className="border border-gray-300 p-2"> የ {selectedMonth} ክፍያ </th>}
-                  {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት)</th>}
-                </>}
-                {reportConfig.type === 'academic' && (
-                  <>
-                    <th className="border border-gray-300 p-2 text-center"> ሁኔታ </th>
-                    <th className="border border-gray-300 p-2 text-center"> ውጤት </th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {displayedStudentsForReport.map((s, idx) => {
-                const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
-                return (
-                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
-                    <td className="border border-gray-300 p-2 font-bold">{s.name}</td>
-                    <td className="border border-gray-300 p-2">{s.phone}</td>
-                    <td className="border border-gray-300 p-2 font-mono text-[11px]">{s.registrationDate || '-'}</td>
-                    <td className="border border-gray-300 p-2">{s.instrumentType || '-'}</td>
-                    {reportConfig.type !== 'academic' && <>
-                      {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
-                        <td className="border border-gray-300 p-2 font-black">
-                          {s.status === 'active' ? (
-                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : <span className="text-red-700"> አልከፈለም </span>
-                          ) : (
-                            <span className="text-gray-400 italic">አይመለከትም</span>
-                          )}
-                        </td>
-                      )}
-                      {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && (
-                        <td className="border border-gray-300 p-2 font-bold text-center">{monthAttendanceCount}</td>
-                      )}
-                    </>}
-                    {reportConfig.type === 'academic' && (
-                      <>
-                        <td className="border border-gray-300 p-2 text-center font-bold">
-                          {s.status === 'completed' ? <span className="text-green-700"> ያጠናቀቀ </span> : s.status === 'dropped' ? <span className="text-red-700"> ያቋረጠ </span> : <span className="text-blue-700"> በመማር ላይ </span>}
-                        </td>
-                        <td className="border border-gray-300 p-2 text-center font-bold">
-                          {s.examResult ? `${s.examResult}%` : '-'}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-              {displayedStudentsForReport.length === 0 && (
-                <tr>
-                  <td colSpan="8" className="border border-gray-300 p-6 text-center text-gray-400 italic">የተመረጠውን ማጣሪያ የሚያሟላ የተማሪ መረጃ አልተገኘም።</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          
-          <div className="mt-16 flex justify-between items-center text-sm font-bold border-t-2 border-black pt-4">
-            <p> አታኦስ በገና አስተዳደር </p>
-            <p> ፊርማ: __________________</p>
-          </div>
         </div>
       </div>
     );
