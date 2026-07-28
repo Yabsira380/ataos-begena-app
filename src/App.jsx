@@ -774,6 +774,12 @@ export default function App() {
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
+    // Profile Modal Payment Logic Correction 
+    const isCurrentMonthProfile = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+    const pDateProfile = parseInt(updatedStudentObj.paymentDate || '1', 10);
+    const todayDProfile = parseInt(todayEth.day, 10);
+    const isNotYetDueProfile = !updatedStudentObj.payments[currentPeriodKey] && isCurrentMonthProfile && todayDProfile < pDateProfile;
+
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
@@ -954,6 +960,8 @@ export default function App() {
                           <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
                           {updatedStudentObj.payments[currentPeriodKey] ? (
                             <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
+                          ) : isNotYetDueProfile ? (
+                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {pDateProfile}) </span>
                           ) : (
                             <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
                           )}
@@ -1705,6 +1713,13 @@ export default function App() {
             <tbody>
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
+                
+                // Report Modal Payment Logic Correction
+                const isCurrentMonthRep = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+                const pDateRep = parseInt(s.paymentDate || '1', 10);
+                const todayDRep = parseInt(todayEth.day, 10);
+                const isNotYetDueRep = !s.payments[currentPeriodKey] && isCurrentMonthRep && todayDRep < pDateRep;
+
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
@@ -1716,7 +1731,7 @@ export default function App() {
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
                         <td className="border border-gray-300 p-2 font-black">
                           {s.status === 'active' ? (
-                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : <span className="text-red-700"> አልከፈለም </span>
+                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : (isNotYetDueRep ? <span className="text-gray-500"> ገና አልደረሰም </span> : <span className="text-red-700"> አልከፈለም </span>)
                           ) : (
                             <span className="text-gray-400 italic">አይመለከትም</span>
                           )}
