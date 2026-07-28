@@ -82,21 +82,35 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   return selMonthIndex >= regMonthIndex;
 };
 
-// የክፍያ ቀን ካልተሞላ የተመዘገበበትን ቀን እንዲጠቀም ማድረጊያ
-const getStudentPaymentDay = (student) => {
-  if (student.paymentDate && student.paymentDate !== '') {
-    return parseInt(student.paymentDate, 10);
-  }
+// ---------------- አዲሱ እና ፍፁም የሆነው የክፍያ ቀን መለየት ማሽን ----------------
+const getDisplayPaymentDay = (student, chkYearStr, chkMonthStr) => {
+  let regYear = 0, regMonthIdx = 0, regDay = 1;
   if (student.registrationDate) {
     const d = new Date(student.registrationDate);
     if (!isNaN(d.getTime())) {
-      return parseInt(getEthiopianDate(d).day, 10);
+      const eth = getEthiopianDate(d);
+      regYear = parseInt(eth.year, 10);
+      regMonthIdx = ethiopianMonths.indexOf(eth.month);
+      regDay = parseInt(eth.day, 10);
     }
   }
-  return 1; // መረጃ ከሌለ በነባሪ ወሩ በገባ በ 1ኛው ቀን ይቆጠራል
+  
+  const cY = parseInt(chkYearStr, 10);
+  const cMIdx = ethiopianMonths.indexOf(chkMonthStr);
+  
+  // 1. የምናየው ወር ከተመዘገበበት የመጀመሪያ ወር ጋር አንድ ከሆነ
+  if (cY === regYear && cMIdx === regMonthIdx) {
+     return regDay; // በተመዘገበበት ቀን ወዲያውኑ ክፍያ ይጠየቃል (Due)
+  } else {
+     // 2. ለቀጣይ ወራት፡ የክፍያ ቀን ከሞላ ያንን ይወስዳል፣ ካልሞላ ደግሞ የተመዘገበበት ቀን + 1 (ለምሳሌ ሰኔ 1 -> ሐምሌ 2)
+     if (student.paymentDate && student.paymentDate !== '') {
+         return parseInt(student.paymentDate, 10);
+     } else {
+         return regDay < 30 ? regDay + 1 : 1;
+     }
+  }
 };
 
-// ---------------- የክፍያ ጊዜ መድረሱን ማረጋገጫ ማሽን ----------------
 const todayEthGlobal = getEthiopianDate();
 
 const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
@@ -107,13 +121,18 @@ const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
   const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
   const tDay = parseInt(todayEthGlobal.day, 10);
   
-  const pDate = getStudentPaymentDay(student);
+  const dueDay = getDisplayPaymentDay(student, chkYearStr, chkMonthStr);
 
+  // 1. የዓመተ ምህረት ወደፊት (Future year) ከሆነ ገና አልደረሰም
   if (cY > tY) return false; 
-  if (cY === tY && cMIdx > tMIdx) return false; 
-  if (cY === tY && cMIdx === tMIdx && tDay < pDate) return false; 
   
-  return true; 
+  // 2. ዘንድሮ ሆኖ፣ ወሩ የወደፊት ከሆነ ገና አልደረሰም
+  if (cY === tY && cMIdx > tMIdx) return false; 
+  
+  // 3. ዘንድሮ እና ትክክለኛው ወር ላይ ሆነን፣ የዛሬው ቀን ከክፍያ ቀኑ (dueDay) ካነሰ ገና አልደረሰም
+  if (cY === tY && cMIdx === tMIdx && tDay < dueDay) return false; 
+  
+  return true; // ቀኑ ደርሷል ወይም አልፏል!
 };
 
 
@@ -222,7 +241,6 @@ export default function App() {
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
-  // አዲስ፡ የክፍያ ታሪክ (Payment History) ለማየት
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState(null);
 
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
@@ -696,12 +714,10 @@ export default function App() {
 
   // --- Views Renders ---
   
-  // አዲስ፡ የክፍያ ታሪክ ማሳያ (Payment History Modal)
   const renderPaymentHistoryModal = () => {
     if (!selectedStudentForHistory) return null;
     const student = students.find(s => s.id === selectedStudentForHistory.id) || selectedStudentForHistory;
     
-    // ታሪኩን ማሰላት (ከተመዘገበበት ጊዜ ጀምሮ እስከ አሁን ድረስ ያለውን የክፍያ ሁኔታ)
     const historyList = [];
     const tYInt = parseInt(todayEthGlobal.year, 10);
     const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
@@ -712,19 +728,17 @@ export default function App() {
           const yInt = parseInt(y, 10);
           const mIdx = ethiopianMonths.indexOf(m);
           
-          // እስከ ዘንድሮ ወር ድረስ ብቻ አሳይ (ወይም 1 የወደፊት ወር)
           if (yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx + 1)) {
              const key = `${y}_${m}`;
              const isPaid = student.payments?.[key] || false;
              const isDue = checkIsPaymentDue(student, y, m);
-             historyList.push({ year: y, month: m, key, isPaid, isDue });
+             const exactDueDay = getDisplayPaymentDay(student, y, m);
+             historyList.push({ year: y, month: m, key, isPaid, isDue, exactDueDay });
           }
         }
       }
     }
-    historyList.reverse(); // አዲሱ ወር ከላይ እንዲታይ
-
-    const pDate = getStudentPaymentDay(student);
+    historyList.reverse();
 
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[250] animate-fade-in">
@@ -749,7 +763,7 @@ export default function App() {
               </div>
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
                 <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
-                <span className="font-black text-[#8B5A2B]">በየወሩ {pDate} ቀን</span>
+                <span className="font-black text-[#8B5A2B]">በየወሩ {getDisplayPaymentDay(student, tYInt, ethiopianMonths[tMIdx])} ቀን</span>
               </div>
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
                 <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ መጠን፦</span>
@@ -768,7 +782,7 @@ export default function App() {
                   <div>
                     <h4 className="font-extrabold text-[#3E2723] text-sm">{item.month} {item.year}</h4>
                     <p className="text-[9px] text-gray-500 font-bold mt-0.5">
-                      {item.isPaid ? 'ተከፍሏል' : (!item.isDue ? `የክፍያ ቀኑ ገና ነው (${pDate})` : 'ክፍያው አጓትቷል')}
+                      {item.isPaid ? 'ተከፍሏል' : (!item.isDue ? `የክፍያ ቀኑ ገና ነው (${item.exactDueDay})` : 'ክፍያው አጓትቷል')}
                     </p>
                   </div>
                 </div>
@@ -892,7 +906,7 @@ export default function App() {
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
     const isDueProfile = checkIsPaymentDue(updatedStudentObj, selectedYear, selectedMonth);
-    const pDateProfile = getStudentPaymentDay(updatedStudentObj);
+    const pDateProfile = getDisplayPaymentDay(updatedStudentObj, selectedYear, selectedMonth);
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -1649,7 +1663,6 @@ export default function App() {
         const isScholarship = Number(s.paymentAmount || 0) === 0;
         if (isScholarship || s.payments[currentPeriodKey]) return false;
         
-        // ጊዜው የደረሰበትን ብቻ አሳልፍ (አዲሱን ማሽን በመጠቀም)
         return checkIsPaymentDue(s, selectedYear, selectedMonth);
       });
     }
@@ -1684,13 +1697,12 @@ export default function App() {
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
             const isDue = checkIsPaymentDue(student, selectedYear, selectedMonth);
-            const pDate = getStudentPaymentDay(student);
+            const pDate = getDisplayPaymentDay(student, selectedYear, selectedMonth);
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
                   
-                  {/* አዲስ፡ የተማሪውን ስም ሲነኩ የክፍያ ታሪክ ይከፈታል */}
                   <div 
                     onClick={() => setSelectedStudentForHistory(student)}
                     className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
