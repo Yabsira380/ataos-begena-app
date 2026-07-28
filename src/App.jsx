@@ -14,8 +14,6 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const ethiopianMonths = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
-const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
-const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
 // --- Ethiopian Real-time Date Calculation Function ---
 const getEthiopianDate = (date = new Date()) => {
@@ -57,107 +55,23 @@ const getEthiopianDate = (date = new Date()) => {
   };
 };
 
-// 🛑 ፍለጋው ነጭ ስክሪን እንዳያመጣ የሚከላከል 🛑
-const safeIncludes = (value, searchTerm) => {
-  if (!searchTerm) return true;
-  return String(value || '').toLowerCase().includes(String(searchTerm).toLowerCase());
-};
-
-// 👇 አዲሱ የተሻሻለ እና ፈጣን የክፍያ ሁኔታ ማረጋገጫ 👇
-const getPaymentStatusForPeriod = (student, selYearStr, selMonthStr, todayEth) => {
-  const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
-  const regDate = new Date(regDateStr);
-  const safeRegDate = isNaN(regDate.getTime()) ? new Date() : regDate;
-  const todayDate = new Date();
+// ---------------- የክፍያ ወር እና የመመዝገቢያ ወር ማወዳደሪያ ----------------
+const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) => {
+  if (!studentRegDateStr) return true;
+  const regDate = new Date(studentRegDateStr);
+  if (isNaN(regDate.getTime())) return true;
+  const regEth = getEthiopianDate(regDate);
   
-  // ተማሪው ከተመዘገበ ስንት ቀን ሆነው?
-  const daysSinceReg = Math.floor((todayDate - safeRegDate) / (1000 * 60 * 60 * 24));
-
-  const regEth = getEthiopianDate(safeRegDate);
-  const regY = parseInt(regEth.year, 10);
-  const regMIdx = ethiopianMonths.indexOf(regEth.month);
-  const dueDay = regEth.day;
-
-  const selY = parseInt(selYearStr, 10);
-  const selMIdx = ethiopianMonths.indexOf(selMonthStr);
-
-  const tY = parseInt(todayEth.year, 10);
-  const tMIdx = ethiopianMonths.indexOf(todayEth.month);
-  const tD = todayEth.day;
-
-  let isEligible = false;
-  if (selY > regY) isEligible = true;
-  else if (selY === regY && selMIdx >= regMIdx) isEligible = true;
-
-  const periodKey = `${selYearStr}_${selMonthStr}`;
-  const isPaid = !!(student.payments && student.payments[periodKey]);
-
-  let isDue = false;
-  if (selY < tY) isDue = true;
-  else if (selY === tY) {
-      if (selMIdx < tMIdx) isDue = true;
-      else if (selMIdx === tMIdx && tD >= dueDay) isDue = true;
-  }
-
-  // 🔴 30 ቀናት ሳይሞላው "አልከፈለም" እንዳይል የሚከለክለው
-  if (selY === regY && selMIdx === regMIdx && daysSinceReg < 30) {
-      isDue = false;
-  }
-
-  return { eligible: isEligible, isDue, isPaid, dueDay };
-};
-
-// 👇 የድሮ ዕዳ (Arrears) ማሰሊያ 👇
-const getUnpaidMonthsInfo = (student, todayEth) => {
-  const amt = Number(student.paymentAmount || 0);
-  if (amt <= 0) return { unpaidKeys: [], totalArrears: 0, dueDay: 1 };
-
-  const regDateStr = student.registrationDate || new Date().toISOString().split('T')[0];
-  const regDate = new Date(regDateStr);
-  const safeRegDate = isNaN(regDate.getTime()) ? new Date() : regDate;
-  const todayDate = new Date();
-  const daysSinceReg = Math.floor((todayDate - safeRegDate) / (1000 * 60 * 60 * 24));
-
-  const regEth = getEthiopianDate(safeRegDate);
-  const regY = parseInt(regEth.year, 10);
-  const regMIdx = ethiopianMonths.indexOf(regEth.month);
-  const dueDay = regEth.day;
-
-  const tY = parseInt(todayEth.year, 10);
-  const tMIdx = ethiopianMonths.indexOf(todayEth.month);
-  const tD = todayEth.day;
-
-  const unpaidKeys = [];
-
-  for (let y = regY; y <= tY; y++) {
-      const startMonthIdx = (y === regY) ? regMIdx : 0;
-      const endMonthIdx = (y === tY) ? tMIdx : 12;
-      
-      for (let mIdx = startMonthIdx; mIdx <= endMonthIdx; mIdx++) {
-          const mName = ethiopianMonths[mIdx];
-          if (!mName) continue;
-          
-          let isDue = false;
-          if (y < tY) isDue = true;
-          else if (y === tY) {
-              if (mIdx < tMIdx) isDue = true;
-              else if (mIdx === tMIdx && tD >= dueDay) isDue = true;
-          }
-
-          if (y === regY && mIdx === regMIdx && daysSinceReg < 30) {
-              isDue = false;
-          }
-
-          if (isDue) {
-              const key = `${y}_${mName}`;
-              if (!student.payments || !student.payments[key]) {
-                  unpaidKeys.push(key);
-              }
-          }
-      }
-  }
-
-  return { unpaidKeys, totalArrears: unpaidKeys.length * amt, dueDay };
+  const regYear = parseInt(regEth.year, 10);
+  const selYear = parseInt(selYearStr, 10);
+  
+  if (selYear < regYear) return false;
+  if (selYear > regYear) return true;
+  
+  const regMonthIndex = ethiopianMonths.indexOf(regEth.month);
+  const selMonthIndex = ethiopianMonths.indexOf(selMonthStr);
+  
+  return selMonthIndex >= regMonthIndex;
 };
 
 // --- Custom Spiritual Icons & SVG ---
@@ -228,6 +142,7 @@ const compressImage = (file) => {
 };
 
 export default function App() {
+  // --- Authentication States ---
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -235,12 +150,17 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
 
+  // --- Main App States ---
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [academicViewType, setAcademicViewType] = useState('active');
 
+  const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
+  const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
+
+  // የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ
   const todayEth = getEthiopianDate();
   const [selectedYear, setSelectedYear] = useState(todayEth.year);
   const [selectedMonth, setSelectedMonth] = useState(todayEth.month);
@@ -255,6 +175,7 @@ export default function App() {
   const [infoSearch, setInfoSearch] = useState('');
   const [confirmModal, setConfirmModal] = useState({ show: false, title: 'የውሳኔ ማረጋገጫ', message: '', onConfirm: () => {} });
 
+  // --- AI States ---
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -262,55 +183,127 @@ export default function App() {
 
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
+  // --- Profile Editing States ---
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({});
 
+  // --- Lessons (Ataos) States ---
   const [selectedLessonInstrument, setSelectedLessonInstrument] = useState('በገና');
   const [isEditingLesson, setIsEditingLesson] = useState(null);
   const [editLessonForm, setEditLessonForm] = useState({ title: '', content: '' });
 
   const [tempScores, setTempScores] = useState({});
-  const [reportConfig, setReportConfig] = useState({ show: false, type: 'general', statusFilter: 'all' });
+  const [reportConfig, setReportConfig] = useState({
+    show: false,
+    type: 'general',
+    statusFilter: 'all'
+  });
 
-  const getTodayString = () => new Date().toISOString().split('T')[0];
+  const getTodayString = () => {
+    return new Date().toISOString().split('T')[0];
+  };
 
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', instrumentType: 'በገና', duration: '3 ወር',
-    chosenDay: '', chosenTime: '', paymentAmount: '', isFree: false, photo: '', status: 'active', examResult: '',
+    chosenDay: '', chosenTime: '', paymentAmount: '', isFree: false, paymentDate: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
+  // የድሮ ዕዳ (Arrears) ማሰሊያ - ቀኑ ካልደረሰ እንደ እዳ እንዳይቆጥረው ተስተካክሏል
+  const getUnpaidMonthsInfo = (student) => {
+    const amt = Number(student.paymentAmount || 0);
+    if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
+    
+    const tYInt = parseInt(todayEth.year, 10);
+    const tMIdx = ethiopianMonths.indexOf(todayEth.month);
+    const tDay = parseInt(todayEth.day, 10);
+    const pDate = parseInt(student.paymentDate || '1', 10);
+    const unpaidKeys = [];
+    
+    for (const y of ethiopianYears) {
+      const yInt = parseInt(y, 10);
+      for (const m of ethiopianMonths) {
+        const mIdx = ethiopianMonths.indexOf(m);
+        const isAfterReg = isEligibleForPaymentPeriod(student.registrationDate, y, m);
+        const isBeforeOrEqualToday = yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx);
+        
+        if (isAfterReg && isBeforeOrEqualToday) {
+          const key = `${y}_${m}`;
+          if (!student.payments || !student.payments[key]) {
+            const isCurrentMonth = (yInt === tYInt && mIdx === tMIdx);
+            // የዘንድሮ ወር ሆኖ ነገር ግን የክፍያ ቀኑ ገና ካልደረሰ እንደ እዳ አይቆጠርም
+            if (isCurrentMonth && tDay < pDate) {
+              continue; 
+            }
+            unpaidKeys.push(key);
+          }
+        }
+      }
+    }
+    return { unpaidKeys, totalArrears: unpaidKeys.length * amt };
+  };
+
+  // --- Authentication Listener & Setup ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
-      if (session) { fetchStudents(); fetchLessons(); }
+      if (session) {
+        fetchStudents();
+        fetchLessons();
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) { fetchStudents(); fetchLessons(); }
+      if (session) {
+        fetchStudents();
+        fetchLessons();
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // --- Fetch Students from Supabase ---
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('students').select('*').order('id', { ascending: true });
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('id', { ascending: true });
+
       if (error) throw error;
+
       const mappedData = data.map(s => ({
-        id: s.id, studentNo: s.student_no, name: s.name, christianName: s.christian_name, phone: s.phone,
-        emergencyContactName: s.emergency_contact_name, emergencyContactPhone: s.emergency_contact_phone,
-        workStatus: s.work_status, churchService: s.church_service, parish: s.parish, instrumentType: s.instrument_type,
-        duration: s.duration, chosenDay: s.chosen_day, chosenTime: s.chosen_time, paymentAmount: s.payment_amount,
-        photo: s.photo, status: s.status, examResult: s.exam_result, registrationDate: s.registration_date,
-        payments: s.payments || {}, attendance: s.attendance || {}, lesson_progress: s.lesson_progress || {}
+        id: s.id,
+        studentNo: s.student_no,
+        name: s.name,
+        christianName: s.christian_name,
+        phone: s.phone,
+        emergencyContactName: s.emergency_contact_name,
+        emergencyContactPhone: s.emergency_contact_phone,
+        workStatus: s.work_status,
+        churchService: s.church_service,
+        parish: s.parish,
+        instrumentType: s.instrument_type,
+        duration: s.duration,
+        chosenDay: s.chosen_day,
+        chosenTime: s.chosen_time,
+        paymentAmount: s.payment_amount,
+        paymentDate: s.payment_date,
+        photo: s.photo,
+        status: s.status,
+        examResult: s.exam_result,
+        registrationDate: s.registration_date,
+        payments: s.payments || {},
+        attendance: s.attendance || {},
+        lesson_progress: s.lesson_progress || {}
       }));
       setStudents(mappedData);
     } catch (err) {
@@ -323,8 +316,12 @@ export default function App() {
   const fetchLessons = async () => {
     try {
       const { data, error } = await supabase.from('lessons').select('*').order('id', { ascending: true });
-      if (!error && data) setLessons(data);
-    } catch (err) { console.error("Lessons fetch error:", err); }
+      if (!error && data) {
+        setLessons(data);
+      }
+    } catch (err) {
+      console.error("Lessons fetch error:", err);
+    }
   };
 
   const handleLogin = async (e) => {
@@ -336,7 +333,7 @@ export default function App() {
       if (error) throw error;
       showNotification('እንኳን በደህና መጡ መምህር!', 'success');
     } catch (err) {
-      setAuthError('የተሳሳተ ኢሜይል ወይም የይለፍ ቃል አስገብተዋል።');
+      setAuthError('የተሳሳተ ኢሜይል ወይም የይለፍ ቃል አስገብተዋል። እባክዎ እንደገና ይሞክሩ።');
     } finally {
       setIsSigningIn(false);
     }
@@ -382,12 +379,20 @@ export default function App() {
 
   const startEditingProfile = (student) => {
     setEditFormData({
-      name: student.name, christian_name: student.christianName || '', phone: student.phone || '',
-      emergency_contact_name: student.emergencyContactName || '', emergency_contact_phone: student.emergencyContactPhone || '',
-      work_status: student.workStatus || 'ተማሪ', church_service: student.churchService || '', parish: student.parish || '',
-      instrument_type: student.instrumentType || 'በገና', duration: student.duration || '3 ወር',
-      chosen_day: student.chosenDay || '', chosen_time: student.chosenTime || '',
+      name: student.name,
+      christian_name: student.christianName || '',
+      phone: student.phone || '',
+      emergency_contact_name: student.emergencyContactName || '',
+      emergency_contact_phone: student.emergencyContactPhone || '',
+      work_status: student.workStatus || 'ተማሪ',
+      church_service: student.churchService || '',
+      parish: student.parish || '',
+      instrument_type: student.instrumentType || 'በገና',
+      duration: student.duration || '3 ወር',
+      chosen_day: student.chosenDay || '',
+      chosen_time: student.chosenTime || '',
       payment_amount: student.paymentAmount !== undefined ? student.paymentAmount : '',
+      payment_date: student.paymentDate || '',
       isFree: Number(student.paymentAmount || 0) === 0,
       registration_date: student.registrationDate || ''
     });
@@ -401,15 +406,28 @@ export default function App() {
     }
     triggerConfirmation('የተማሪውን መረጃ በእርግጥ ማስተካከል (Save) ይፈልጋሉ?', 'መረጃ ማስተካከያ', async () => {
       const payload = { 
-        name: editFormData.name, christian_name: editFormData.christian_name, phone: editFormData.phone,
-        emergency_contact_name: editFormData.emergency_contact_name, emergency_contact_phone: editFormData.emergency_contact_phone,
-        work_status: editFormData.work_status, church_service: editFormData.church_service, parish: editFormData.parish,
-        instrument_type: editFormData.instrument_type, duration: editFormData.duration, chosen_day: editFormData.chosen_day, chosen_time: editFormData.chosen_time,
+        name: editFormData.name,
+        christian_name: editFormData.christian_name,
+        phone: editFormData.phone,
+        emergency_contact_name: editFormData.emergency_contact_name,
+        emergency_contact_phone: editFormData.emergency_contact_phone,
+        work_status: editFormData.work_status,
+        church_service: editFormData.church_service,
+        parish: editFormData.parish,
+        instrument_type: editFormData.instrument_type,
+        duration: editFormData.duration,
+        chosen_day: editFormData.chosen_day,
+        chosen_time: editFormData.chosen_time,
         payment_amount: editFormData.isFree ? 0 : Number(editFormData.payment_amount || 0),
+        payment_date: editFormData.payment_date,
         registration_date: editFormData.registration_date 
       };
+      
       const success = await updateStudentInDb(studentId, payload);
-      if (success) { showNotification('የተማሪው መረጃ በተሳካ ሁኔታ ተስተካክሏል!', 'success'); setIsEditingProfile(false); }
+      if (success) {
+        showNotification('የተማሪው መረጃ በተሳካ ሁኔታ ተስተካክሏል!', 'success');
+        setIsEditingProfile(false);
+      }
     });
   };
 
@@ -455,7 +473,11 @@ export default function App() {
   const handleAddStudentSubmit = (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
-    if (!newStudent.isFree && !newStudent.paymentAmount) { showNotification("እባክዎ ወርሃዊ ክፍያ ያስገቡ ወይም ነፃ የሚለውን ይምረጡ!", "error"); return; }
+    if (!newStudent.isFree && !newStudent.paymentAmount) {
+      showNotification("እባክዎ ወርሃዊ ክፍያ ያስገቡ ወይም ነፃ የሚለውን ይምረጡ!", "error");
+      return;
+    }
+
     triggerConfirmation(`አዲስ ተማሪ "${newStudent.name}" ለመመዝገብ መረጃው ትክክል መሆኑን ያረጋግጣሉ?`, 'የተማሪ ምዝገባ ማረጋገጫ', async () => {
         const nextNo = generateNextStudentNo();
         const studentToInsert = {
@@ -464,13 +486,16 @@ export default function App() {
           work_status: newStudent.workStatus, church_service: newStudent.churchService, parish: newStudent.parish,
           instrument_type: newStudent.instrumentType, duration: newStudent.duration, chosen_day: newStudent.chosenDay, chosen_time: newStudent.chosenTime,
           payment_amount: newStudent.isFree ? 0 : Number(newStudent.paymentAmount || 0),
-          photo: newStudent.photo, status: 'active', exam_result: '', registration_date: newStudent.registrationDate, payments: {}, attendance: {}, lesson_progress: {}
+          payment_date: newStudent.paymentDate,
+          photo: newStudent.photo, status: 'active', exam_result: '',
+          registration_date: newStudent.registrationDate, payments: {}, attendance: {}, lesson_progress: {}
         };
         const { error } = await supabase.from('students').insert([studentToInsert]);
         if (error) { showNotification('ምዝገባው አልተሳካም! እባክዎ እንደገና ይሞክሩ።', 'error');
         } else {
           showNotification(`ተማሪው በመለያ ቁጥር ${nextNo} በተሳካ ሁኔታ ተመዝግቧል!`, 'success');
-          setNewStudent(initialStudentState); fetchStudents();
+          setNewStudent(initialStudentState);
+          fetchStudents();
         }
     });
   };
@@ -480,8 +505,11 @@ export default function App() {
         const { error } = await supabase.from('students').delete().eq('id', student.id);
         if (error) { showNotification('ስረዛው አልተሳካም!', 'error');
         } else {
-          showNotification(`${student.name} ከዝርዝር ተሰርዟል።`, 'success'); fetchStudents();
-          if (selectedStudentProfile?.id === student.id) { setSelectedStudentProfile(null); setEditStudentNoState({ isEditing: false, value: '' }); setIsEditingProfile(false); }
+          showNotification(`${student.name} ከዝርዝር ተሰርዟል።`, 'success');
+          fetchStudents();
+          if (selectedStudentProfile?.id === student.id) {
+            setSelectedStudentProfile(null); setEditStudentNoState({ isEditing: false, value: '' }); setIsEditingProfile(false);
+          }
         }
     });
   };
@@ -545,7 +573,7 @@ export default function App() {
         const success = await updateStudentInDb(student.id, { status: newStatus });
         if (success) {
           if (newStatus === 'completed') showNotification('ተማሪው ትምህርቱን ማጠናቀቁ ተመዝግቧል!', 'success');
-          else if (newStatus === 'dropped') showNotification('ተማሪው ትምህርቱን ያቋረጠ ተመዝግቧል!', 'success');
+          else if (newStatus === 'dropped') showNotification('ተማሪው ትምህርቱን ማቋረጡ ተመዝግቧል!', 'success');
           else showNotification('ተማሪው ወደ ትምህርት ገበታ ተመልሷል!', 'success');
         }
     });
@@ -615,37 +643,35 @@ export default function App() {
 
   const copyReportToClipboard = () => showNotification('ሪፖርቱ በፅሁፍ ኮፒ ተደርጓል!', 'success');
 
-  // --- COMPUTATIONS (Optimized & Fast) ---
+  // --- COMPUTATIONS ---
   const activeStudents = students.filter(s => s.status === 'active');
-  
-  const eligiblePaymentStudents = activeStudents.filter(s => {
-    const status = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
-    return status.eligible && Number(s.paymentAmount || 0) > 0;
-  });
+  const eligiblePaymentStudents = activeStudents.filter(s => 
+    isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth) && 
+    Number(s.paymentAmount || 0) > 0
+  );
 
   const completedStudentsCount = students.filter(s => s.status === 'completed').length;
   const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
   const totalActive = activeStudents.length;
   const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
   
-  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(student => {
-    const status = getPaymentStatusForPeriod(student, selectedYear, selectedMonth, todayEth);
-    return status.isPaid || !status.isDue; 
-  }).length;
-
-  const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(student => {
-    const status = getPaymentStatusForPeriod(student, selectedYear, selectedMonth, todayEth);
-    return status.isDue && !status.isPaid;
+  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
+  
+  // ያልከፈሉትን ሲያሰላ ቀኑን ያላከበሩትን ብቻ እንዲያሰላ ማስተካከያ (ገና ቀኑ ያልደረሰን እንደ ዕዳ አይቆጥርም)
+  const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
+    if (s.payments[currentPeriodKey]) return false;
+    const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+    const pDate = parseInt(s.paymentDate || '1', 10);
+    const todayD = parseInt(todayEth.day, 10);
+    if (isCurrentMonth && todayD < pDate) return false;
+    return true;
   }).length;
   
   const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
-  const totalRevenueCollected = eligiblePaymentStudents.filter(s => {
-    const status = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
-    return status.isPaid;
-  }).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
+  const totalRevenueCollected = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
   
   const overdueList = activeStudents.map(student => {
-    const info = getUnpaidMonthsInfo(student, todayEth);
+    const info = getUnpaidMonthsInfo(student);
     if (info.unpaidKeys.length > 0) return { ...student, ...info };
     return null;
   }).filter(Boolean);
@@ -746,9 +772,7 @@ export default function App() {
     
     const studentLessons = lessons.filter(l => l.instrument === updatedStudentObj.instrumentType).sort((a, b) => a.id - b.id);
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
-    
-    const pStatus = getPaymentStatusForPeriod(updatedStudentObj, selectedYear, selectedMonth, todayEth);
-    const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj, todayEth);
+    const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -757,7 +781,7 @@ export default function App() {
             <div className="flex items-center space-x-3 w-full">
               <div className="flex flex-col items-center gap-1">
                 <div className="w-14 h-14 rounded-2xl bg-white/15 overflow-hidden border border-white/20 flex-shrink-0 relative">
-                  {updatedStudentObj.photo ? <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24} /></div>}
+                  {updatedStudentObj.photo ? <img src={updatedStudentObj.photo} alt="" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#D4AF37]"><User size={24}/></div>}
                 </div>
                 {!isEditingProfile && (
                   <div className="flex gap-1">
@@ -773,11 +797,11 @@ export default function App() {
                   {editStudentNoState.isEditing ? (
                     <div className="flex items-center gap-1 bg-white/20 p-0.5 rounded">
                       <input type="text" value={editStudentNoState.value} onChange={e => setEditStudentNoState({...editStudentNoState, value: e.target.value})} className="text-[#3E2723] px-1 py-0.5 rounded w-14 text-[10px] font-black focus:outline-none" autoFocus/>
-                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors"><Check size={10} /></button>
-                      <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors"><X size={10} /></button>
+                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors"><Check size={10}/></button>
+                      <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors"><X size={10}/></button>
                     </div>
                   ) : (
-                    <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">#{updatedStudentObj.studentNo} {!isEditingProfile && <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1"><Edit size={10} /></button>}</span>
+                    <span className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/10">#{updatedStudentObj.studentNo} {!isEditingProfile && <button onClick={() => setEditStudentNoState({isEditing: true, value: updatedStudentObj.studentNo})} className="text-[#D4AF37] hover:text-white transition-colors ml-1"><Edit size={10}/></button>}</span>
                   )}
                 </div>
               </div>
@@ -813,6 +837,7 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-2 mt-2 border-t border-dashed border-[#D2B48C] pt-2">
                    <div>
                      <div className="flex justify-between items-center mb-1">
@@ -831,9 +856,14 @@ export default function App() {
                      )}
                    </div>
                    <div>
-                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label>
-                     <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
+                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">የክፍያ ቀን (ከ 1-30)</label>
+                     <input type="number" min="1" max="30" placeholder="15" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_date} onChange={e=>setEditFormData({...editFormData, payment_date: e.target.value})} disabled={editFormData.isFree}/>
                    </div>
+                </div>
+
+                <div>
+                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label>
+                   <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
                 </div>
 
                 <div>
@@ -845,8 +875,8 @@ export default function App() {
                 </div>
               </div>
               <div className="flex gap-3 pt-4 border-t-2 border-dashed border-[#D2B48C] mt-2">
-                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14} /> አስቀምጥ</button>
-                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14} /> ተወው</button>
+                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14}/> አስቀምጥ</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14}/> ተወው</button>
               </div>
             </div>
           ) : (
@@ -914,18 +944,21 @@ export default function App() {
 
                   {updatedStudentObj.status === 'active' && (
                     <>
-                      <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
-                        <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
-                        {isScholarship ? (
-                          <span className="text-blue-700 font-black bg-blue-100 border border-blue-300 px-2 py-1 rounded text-xs"> ነፃ ተማሪ </span>
-                        ) : pStatus.isPaid ? (
-                          <span className="text-green-700 font-black bg-green-100 border border-green-300 px-2 py-1 rounded text-xs"> ከፍሏል ✓</span>
-                        ) : !pStatus.isDue ? (
-                          <span className="text-amber-700 font-black bg-amber-50 border border-amber-300 px-2 py-1 rounded text-[10px]"> ቀኑ አልደረሰም ({pStatus.dueDay} ቀን) </span>
-                        ) : (
-                          <span className="text-red-700 font-black bg-red-100 border border-red-300 px-2 py-1 rounded text-xs"> አልከፈለም ✗ </span>
-                        )}
-                      </div>
+                      {isScholarship ? (
+                        <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-blue-50 p-2 rounded">
+                          <span className="font-bold text-blue-900"> የ {selectedMonth} ክፍያ ሁኔታ፦ </span> 
+                          <span className="text-blue-700 font-black bg-blue-200 px-3 py-1 rounded"> ነፃ (Scholarship) </span>
+                        </div>
+                      ) : (
+                        <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
+                          <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
+                          {updatedStudentObj.payments[currentPeriodKey] ? (
+                            <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
+                          ) : (
+                            <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
+                          )}
+                        </div>
+                      )}
                       
                       {studentArrearsInfo.totalArrears > 0 && (
                         <div className="col-span-2 mt-2 pt-2 border-t border-red-200 flex justify-between items-center bg-red-50 p-2 rounded shadow-inner">
@@ -993,7 +1026,7 @@ export default function App() {
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div><Award size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{completedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span></div>
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('dropped'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><UserMinus size={64}/></div><UserMinus size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{droppedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያቋረጡ ተማሪዎች </span></div>
           <div onClick={() => { setActiveTab('attendance'); setAttendanceFilter('present'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CheckSquare size={64}/></div><CheckSquare size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{totalPresentToday}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ዛሬ የተገኙ ({selectedMonth} {selectedDay})</span></div>
-          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div><CreditCard size={24} className="mb-2 text-[#D4AF37]" /><span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ/ነፃ ({selectedMonth})</span></div>
+          <div onClick={() => { setActiveTab('payments'); setPaymentFilter('paid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-[#D4AF37] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><CreditCard size={64}/></div><CreditCard size={24} className="mb-2 text-[#D4AF37]" /><span className="text-3xl font-black font-serif">{totalPaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> የከፈሉ ({selectedMonth})</span></div>
           <div onClick={() => { setActiveTab('payments'); setPaymentFilter('unpaid'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-red-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><XCircle size={64}/></div><XCircle size={24} className="mb-2 text-red-700" /><span className="text-3xl font-black font-serif">{totalUnpaidCurrentMonth}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያልከፈሉ ({selectedMonth})</span></div>
         </div>
 
@@ -1001,7 +1034,7 @@ export default function App() {
           <div className="bg-[#FAF3E0] rounded-[22px] p-5 relative overflow-hidden h-full border border-white">
             <div className="absolute -right-4 -top-4 opacity-[0.08] text-[#8B5A2B]"><Sparkles size={100} /></div>
             <div className="flex items-center space-x-2 mb-3">
-              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16} /></div>
+              <div className="bg-[#8B5A2B] p-1.5 rounded-lg text-white shadow-sm"><Quote size={16}/></div>
               <h3 className="font-bold text-[#3E2723] text-sm font-serif flex items-center gap-1">የ AI ረዳት መዘክር <EthiopianCross className="w-4 h-4 text-[#D4AF37]" /></h3>
             </div>
             <p className="text-xs sm:text-sm text-[#3E2723] leading-relaxed font-medium relative z-10">
@@ -1177,20 +1210,34 @@ export default function App() {
                   <span>በነፃ የሚማር (Scholarship)</span>
                 </label>
               </div>
-              {!newStudent.isFree ? (
-                <input 
-                  type="number" 
-                  required 
-                  placeholder="500" 
-                  className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" 
-                  value={newStudent.paymentAmount} 
-                  onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} 
-                />
-              ) : (
-                <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">
-                  ይህ ተማሪ በነፃ (Scholarship) እንዲማር የተመረጠ ነው
+              <div className="grid grid-cols-2 gap-3">
+                {!newStudent.isFree ? (
+                  <input 
+                    type="number" 
+                    required 
+                    placeholder="500" 
+                    className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" 
+                    value={newStudent.paymentAmount} 
+                    onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} 
+                  />
+                ) : (
+                  <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">
+                    ነፃ ተማሪ
+                  </div>
+                )}
+                <div className="relative">
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="30" 
+                    placeholder="የክፍያ ቀን (ለምሳሌ 15)" 
+                    className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" 
+                    value={newStudent.paymentDate} 
+                    onChange={(e) => setNewStudent({...newStudent, paymentDate: e.target.value})}
+                    disabled={newStudent.isFree}
+                  />
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -1203,7 +1250,7 @@ export default function App() {
   );
 
   const renderAcademicView = () => {
-    const filteredInfoStudents = students.filter(s => s.status === academicViewType && safeIncludes(s.name, infoSearch) || safeIncludes(s.studentNo, infoSearch));
+    const filteredInfoStudents = students.filter(s => s.status === academicViewType && (s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch))));
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1228,7 +1275,7 @@ export default function App() {
         </div>
 
         <div className="space-y-4">
-          {filteredInfoStudents.filter(s => s.status === academicViewType).map(student => (
+          {filteredInfoStudents.map(student => (
             <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
               <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
                 <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
@@ -1286,7 +1333,7 @@ export default function App() {
               </div>
             </div>
           ))}
-          {filteredInfoStudents.filter(s => s.status === academicViewType).length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
+          {filteredInfoStudents.length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
         </div>
       </div>
     );
@@ -1383,7 +1430,10 @@ export default function App() {
   };
 
   const renderAttendanceView = () => {
-    let filteredStudents = activeStudents.filter(s => safeIncludes(s.name, attendanceSearch) || safeIncludes(s.studentNo, attendanceSearch));
+    let filteredStudents = activeStudents.filter(s => 
+      s.name.toLowerCase().includes(attendanceSearch.toLowerCase()) || 
+      (s.studentNo && s.studentNo.includes(attendanceSearch))
+    );
 
     if (attendanceFilter === 'present') {
       filteredStudents = filteredStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]);
@@ -1462,23 +1512,24 @@ export default function App() {
   };
 
   const renderPaymentsView = () => {
-    const eligibleForMonth = activeStudents.filter(s => getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth).eligible);
-    let filteredPaymentStudents = eligibleForMonth.filter(s => safeIncludes(s.name, paymentSearch) || safeIncludes(s.studentNo, paymentSearch));
+    const eligibleForMonth = activeStudents.filter(s => isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth));
+    let filteredPaymentStudents = eligibleForMonth.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
+    // በክፍያ ማጣሪያ ላይ፣ የክፍያ ቀኑ ያልደረሰውን ከ "ያልከፈሉ" (Unpaid) ዝርዝር ውስጥ እንዳይታይ ማድረግ
     if (paymentFilter === 'paid') {
-      filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-        const info = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
-        return info.isPaid || Number(s.paymentAmount || 0) === 0;
-      });
+      filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0);
     } else if (paymentFilter === 'unpaid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-        const info = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
-        return !info.isPaid && info.isDue && Number(s.paymentAmount || 0) > 0;
-      });
-    } else if (paymentFilter === 'pending') {
-      filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-        const info = getPaymentStatusForPeriod(s, selectedYear, selectedMonth, todayEth);
-        return !info.isPaid && !info.isDue && Number(s.paymentAmount || 0) > 0;
+        if (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0) return false;
+        
+        const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+        const pDate = parseInt(s.paymentDate || '1', 10);
+        const todayD = parseInt(todayEth.day, 10);
+        
+        // ቀኑ ገና ከሆነ አታሳየው
+        if (isCurrentMonth && todayD < pDate) return false; 
+        
+        return true;
       });
     }
 
@@ -1489,14 +1540,13 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors"><Printer size={14} /> ሪፖርት</button>
         </div>
 
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1 flex-wrap">
-          <button onClick={() => setPaymentFilter('all')} className={`flex-1 min-w-[70px] py-2 text-[10px] font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({eligibleForMonth.length})</button>
-          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 min-w-[70px] py-2 text-[10px] font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ነፃ</button>
-          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 min-w-[70px] py-2 text-[10px] font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
-          <button onClick={() => setPaymentFilter('pending')} className={`flex-1 min-w-[70px] py-2 text-[10px] font-bold rounded-xl transition-all ${paymentFilter === 'pending' ? 'bg-amber-600 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ቀኑ ያልደረሰ</button>
+        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
+          <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({eligibleForMonth.length})</button>
+          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ነፃ</button>
+          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3 mt-2">
+        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
           <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓመተ ምሕረት፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
           <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> የዕለት ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
@@ -1510,19 +1560,28 @@ export default function App() {
           {filteredPaymentStudents.map(student => {
             const amt = Number(student.paymentAmount || 0);
             const isScholarship = amt <= 0;
-            const pStatus = getPaymentStatusForPeriod(student, selectedYear, selectedMonth, todayEth);
+            const isPaidForMonth = student.payments[currentPeriodKey] || false;
+            
+            // የክፍያ ቀኑ መድረሱን ማረጋገጫ
+            const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+            const pDate = parseInt(student.paymentDate || '1', 10);
+            const todayD = parseInt(todayEth.day, 10);
+            const isNotYetDue = !isPaidForMonth && isCurrentMonth && todayD < pDate;
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : pStatus.isPaid ? 'bg-[#E8F5E9] border-green-400' : !pStatus.isDue ? 'bg-amber-50 border-amber-300' : 'bg-[#FFEBEE] border-red-300'}`}>
-                      <CreditCard size={20} className={isScholarship ? 'text-blue-500' : pStatus.isPaid ? 'text-[#2E7D32]' : !pStatus.isDue ? 'text-amber-500' : 'text-[#C62828]'} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : (isNotYetDue ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
+                      <CreditCard size={20} className={isScholarship ? 'text-blue-500' : isPaidForMonth ? 'text-[#2E7D32]' : (isNotYetDue ? 'text-gray-500' : 'text-[#C62828]')} />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
-                      <p className="text-[10px] text-gray-500 mt-0.5 font-bold">{student.instrumentType} | {isScholarship ? 'ነፃ (0 ብር)' : `${amt} ብር`} </p>
-                      <p className="text-[9px] text-gray-400">የክፍያ ዕለት፦ በየወሩ {pStatus.dueDay} ቀን</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
+                        {student.instrumentType} | {isScholarship ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
+                        {student.paymentDate && !isScholarship ? ` (ቀን ${student.paymentDate})` : ''}
+                      </p>
+                      <p className="text-[9px] text-gray-400">መዝገብ፦ {student.registrationDate || '-'}</p>
                     </div>
                   </div>
                   
@@ -1530,24 +1589,26 @@ export default function App() {
                     <span className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-100 text-blue-700 border border-blue-300">
                       ነፃ ተማሪ
                     </span>
-                  ) : pStatus.isPaid ? (
-                    <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} className="px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm bg-green-100 text-[#2E7D32] border border-green-400">
-                      ከፍሏል
-                    </button>
-                  ) : !pStatus.isDue ? (
-                    <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-amber-50 text-amber-800 border border-amber-300">
-                      ቀኑ አልደረሰም ({pStatus.dueDay} ቀን)
+                  ) : isNotYetDue ? (
+                    <button 
+                      onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
+                      className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-gray-100 text-gray-600 border border-gray-300"
+                    >
+                      ገና አልደረሰም
                     </button>
                   ) : (
-                    <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} className="px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm bg-red-100 text-red-700 border border-red-300">
-                      አልከፈለም
+                    <button 
+                      onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm ${isPaidForMonth ? 'bg-green-100 text-[#2E7D32] border border-green-400' : 'bg-red-100 text-red-700 border border-red-300'}`}
+                    >
+                      {isPaidForMonth ? 'ከፍሏል' : 'አልከፈለም'}
                     </button>
                   )}
                 </div>
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ወር ክፍያ የሚጠበቅበት ወይም የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
@@ -1695,6 +1756,7 @@ export default function App() {
     );
   };
 
+  // --- Auth Loading Screen ---
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
@@ -1729,7 +1791,7 @@ export default function App() {
             <span className="font-black text-sm sm:text-base font-serif text-[#FFF8E7]">አታኦስ በገና ማሰልጠኛ</span>
           </div>
           <button onClick={handleLogout} className="bg-red-700/80 hover:bg-red-800 text-white px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1 shadow-sm border border-red-500/30">
-            <UserMinus size={14} /> ውጣ
+            <UserMinus size={14} /> ውጣ (Logout)
           </button>
         </header>
 
