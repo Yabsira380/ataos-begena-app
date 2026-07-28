@@ -82,59 +82,68 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   return selMonthIndex >= regMonthIndex;
 };
 
-// ---------------- አዲሱ እና ፍፁም የሆነው የክፍያ ቀን መለየት ማሽን ----------------
-const getDisplayPaymentDay = (student, chkYearStr, chkMonthStr) => {
-  let regYear = 0, regMonthIdx = 0, regDay = 1;
-  if (student.registrationDate) {
-    const d = new Date(student.registrationDate);
-    if (!isNaN(d.getTime())) {
-      const eth = getEthiopianDate(d);
-      regYear = parseInt(eth.year, 10);
-      regMonthIdx = ethiopianMonths.indexOf(eth.month);
-      regDay = parseInt(eth.day, 10);
-    }
-  }
-  
-  const cY = parseInt(chkYearStr, 10);
-  const cMIdx = ethiopianMonths.indexOf(chkMonthStr);
-  
-  // 1. የምናየው ወር ከተመዘገበበት የመጀመሪያ ወር ጋር አንድ ከሆነ
-  if (cY === regYear && cMIdx === regMonthIdx) {
-     return regDay; // በተመዘገበበት ቀን ወዲያውኑ ክፍያ ይጠየቃል (Due)
-  } else {
-     // 2. ለቀጣይ ወራት፡ የክፍያ ቀን ከሞላ ያንን ይወስዳል፣ ካልሞላ ደግሞ የተመዘገበበት ቀን + 1 (ለምሳሌ ሰኔ 1 -> ሐምሌ 2)
-     if (student.paymentDate && student.paymentDate !== '') {
-         return parseInt(student.paymentDate, 10);
-     } else {
-         return regDay < 30 ? regDay + 1 : 1;
-     }
-  }
-};
-
+// ---------------- አዲሱ እና ፍፁም የሆነው ማዕከላዊ የክፍያ ማሽን ----------------
 const todayEthGlobal = getEthiopianDate();
 
-const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
-  const cY = parseInt(chkYearStr, 10);
-  const cMIdx = ethiopianMonths.indexOf(chkMonthStr);
-  
-  const tY = parseInt(todayEthGlobal.year, 10);
-  const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
-  const tDay = parseInt(todayEthGlobal.day, 10);
-  
-  const dueDay = getDisplayPaymentDay(student, chkYearStr, chkMonthStr);
+const getDueDayForMonth = (student, cY, cMIdx) => {
+    let regYear = 0;
+    let regMonthIdx = 0;
+    let regDay = 1;
 
-  // 1. የዓመተ ምህረት ወደፊት (Future year) ከሆነ ገና አልደረሰም
-  if (cY > tY) return false; 
-  
-  // 2. ዘንድሮ ሆኖ፣ ወሩ የወደፊት ከሆነ ገና አልደረሰም
-  if (cY === tY && cMIdx > tMIdx) return false; 
-  
-  // 3. ዘንድሮ እና ትክክለኛው ወር ላይ ሆነን፣ የዛሬው ቀን ከክፍያ ቀኑ (dueDay) ካነሰ ገና አልደረሰም
-  if (cY === tY && cMIdx === tMIdx && tDay < dueDay) return false; 
-  
-  return true; // ቀኑ ደርሷል ወይም አልፏል!
+    if (student.registrationDate) {
+        const eth = getEthiopianDate(new Date(student.registrationDate));
+        regYear = parseInt(eth.year, 10);
+        regMonthIdx = ethiopianMonths.indexOf(eth.month);
+        regDay = parseInt(eth.day, 10);
+    }
+
+    if (cY === regYear && cMIdx === regMonthIdx) {
+        return regDay;
+    } else {
+        if (student.paymentDate && student.paymentDate !== '') {
+            return parseInt(student.paymentDate, 10);
+        } else {
+            return regDay < 30 ? regDay + 1 : 1;
+        }
+    }
 };
 
+const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
+    const tY = parseInt(todayEthGlobal.year, 10);
+    const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
+    const tDay = parseInt(todayEthGlobal.day, 10);
+
+    const cY = parseInt(targetYearStr, 10);
+    const cMIdx = ethiopianMonths.indexOf(targetMonthStr);
+
+    if (!isEligibleForPaymentPeriod(student.registrationDate, targetYearStr, targetMonthStr)) {
+        return 'NOT_ELIGIBLE';
+    }
+
+    const key = `${targetYearStr}_${targetMonthStr}`;
+    if (student.payments && student.payments[key]) {
+        return 'PAID';
+    }
+    if (Number(student.paymentAmount || 0) === 0) {
+        return 'SCHOLARSHIP';
+    }
+
+    const dueDay = getDueDayForMonth(student, cY, cMIdx);
+
+    if (cY > tY || (cY === tY && cMIdx > tMIdx)) {
+        return 'FUTURE_NOT_DUE';
+    }
+
+    if (cY === tY && cMIdx === tMIdx) {
+        if (tDay < dueDay) {
+            return 'CURRENT_NOT_DUE';
+        } else {
+            return 'UNPAID';
+        }
+    }
+
+    return 'UNPAID';
+};
 
 // --- Custom Spiritual Icons & SVG ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
@@ -270,23 +279,20 @@ export default function App() {
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
+  // አዲሱን ማሽን የተጠቀመ የዕዳ ማሰሊያ
   const getUnpaidMonthsInfo = (student) => {
-    const amt = Number(student.paymentAmount || 0);
-    if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
+    if (Number(student.paymentAmount || 0) <= 0) return { unpaidKeys: [], totalArrears: 0 };
     
     const unpaidKeys = [];
     for (const y of ethiopianYears) {
       for (const m of ethiopianMonths) {
-        const key = `${y}_${m}`;
-        const isEligible = isEligibleForPaymentPeriod(student.registrationDate, y, m);
-        const isDue = checkIsPaymentDue(student, y, m);
-        
-        if (isEligible && isDue && (!student.payments || !student.payments[key])) {
-          unpaidKeys.push(key);
+        const status = getPaymentStatus(student, y, m);
+        if (status === 'UNPAID') {
+            unpaidKeys.push(`${y}_${m}`);
         }
       }
     }
-    return { unpaidKeys, totalArrears: unpaidKeys.length * amt };
+    return { unpaidKeys, totalArrears: unpaidKeys.length * Number(student.paymentAmount || 0) };
   };
 
   useEffect(() => {
@@ -685,21 +691,24 @@ export default function App() {
 
   // --- COMPUTATIONS ---
   const activeStudents = students.filter(s => s.status === 'active');
-  const eligiblePaymentStudents = activeStudents.filter(s => 
-    isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth) && 
-    Number(s.paymentAmount || 0) > 0
-  );
+  const eligiblePaymentStudents = activeStudents.filter(s => {
+      const status = getPaymentStatus(s, selectedYear, selectedMonth);
+      return status !== 'NOT_ELIGIBLE';
+  });
 
   const completedStudentsCount = students.filter(s => s.status === 'completed').length;
   const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
   const totalActive = activeStudents.length;
   const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
   
-  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
+  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => {
+      const status = getPaymentStatus(s, selectedYear, selectedMonth);
+      return status === 'PAID';
+  }).length;
   
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
-    if (s.payments[currentPeriodKey]) return false;
-    return checkIsPaymentDue(s, selectedYear, selectedMonth);
+      const status = getPaymentStatus(s, selectedYear, selectedMonth);
+      return status === 'UNPAID';
   }).length;
   
   const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
@@ -730,10 +739,9 @@ export default function App() {
           
           if (yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx + 1)) {
              const key = `${y}_${m}`;
-             const isPaid = student.payments?.[key] || false;
-             const isDue = checkIsPaymentDue(student, y, m);
-             const exactDueDay = getDisplayPaymentDay(student, y, m);
-             historyList.push({ year: y, month: m, key, isPaid, isDue, exactDueDay });
+             const status = getPaymentStatus(student, y, m);
+             const exactDueDay = getDueDayForMonth(student, yInt, mIdx);
+             historyList.push({ year: y, month: m, key, status, exactDueDay });
           }
         }
       }
@@ -763,7 +771,9 @@ export default function App() {
               </div>
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
                 <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
-                <span className="font-black text-[#8B5A2B]">በየወሩ {getDisplayPaymentDay(student, tYInt, ethiopianMonths[tMIdx])} ቀን</span>
+                <span className="font-black text-[#8B5A2B]">
+                  {student.paymentDate && student.paymentDate !== '' ? `በየወሩ ${student.paymentDate} ቀን` : `(በተመዘገበበት ስሌት)`}
+                </span>
               </div>
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
                 <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ መጠን፦</span>
@@ -773,24 +783,24 @@ export default function App() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {historyList.map((item, index) => (
+            {historyList.map((item) => (
               <div key={item.key} className="bg-white rounded-2xl p-3 border-2 border-[#EADDCA] shadow-sm flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold text-xs ${item.isPaid ? 'bg-green-50 border-green-300 text-green-700' : (!item.isDue ? 'bg-gray-50 border-gray-300 text-gray-500' : 'bg-red-50 border-red-300 text-red-700')}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold text-xs ${item.status === 'PAID' || item.status === 'SCHOLARSHIP' ? 'bg-green-50 border-green-300 text-green-700' : (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-gray-50 border-gray-300 text-gray-500' : 'bg-red-50 border-red-300 text-red-700')}`}>
                     {item.month.substring(0, 3)}
                   </div>
                   <div>
                     <h4 className="font-extrabold text-[#3E2723] text-sm">{item.month} {item.year}</h4>
                     <p className="text-[9px] text-gray-500 font-bold mt-0.5">
-                      {item.isPaid ? 'ተከፍሏል' : (!item.isDue ? `የክፍያ ቀኑ ገና ነው (${item.exactDueDay})` : 'ክፍያው አጓትቷል')}
+                      {item.status === 'PAID' ? 'ተከፍሏል' : item.status === 'SCHOLARSHIP' ? 'ነፃ (Scholarship)' : (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? `የክፍያ ቀኑ ገና ነው (ቀን ${item.exactDueDay})` : `ክፍያው አጓትቷል (ቀን ${item.exactDueDay})`)}
                     </p>
                   </div>
                 </div>
                 
                 <div>
-                   {item.isPaid ? (
+                   {item.status === 'PAID' || item.status === 'SCHOLARSHIP' ? (
                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><CheckCircle size={12}/> ከፍሏል</span>
-                   ) : !item.isDue ? (
+                   ) : item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? (
                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><Clock size={12}/> አልደረሰም</span>
                    ) : (
                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><AlertCircle size={12}/> ዕዳ</span>
@@ -902,11 +912,12 @@ export default function App() {
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
     
     const studentLessons = lessons.filter(l => l.instrument === updatedStudentObj.instrumentType).sort((a, b) => a.id - b.id);
-    const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
-    const isDueProfile = checkIsPaymentDue(updatedStudentObj, selectedYear, selectedMonth);
-    const pDateProfile = getDisplayPaymentDay(updatedStudentObj, selectedYear, selectedMonth);
+    // Profile Modal Payment Logic
+    const currentStatus = getPaymentStatus(updatedStudentObj, selectedYear, selectedMonth);
+    const isScholarship = currentStatus === 'SCHOLARSHIP';
+    const pDateProfile = getDueDayForMonth(updatedStudentObj, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth));
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -1089,9 +1100,9 @@ export default function App() {
                       ) : (
                         <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
                           <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
-                          {updatedStudentObj.payments[currentPeriodKey] ? (
+                          {currentStatus === 'PAID' ? (
                             <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
-                          ) : !isDueProfile ? (
+                          ) : (currentStatus === 'CURRENT_NOT_DUE' || currentStatus === 'FUTURE_NOT_DUE') ? (
                             <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {pDateProfile}) </span>
                           ) : (
                             <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
@@ -1653,17 +1664,22 @@ export default function App() {
   };
 
   const renderPaymentsView = () => {
-    const eligibleForMonth = activeStudents.filter(s => isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth));
+    const eligibleForMonth = activeStudents.filter(s => {
+        const status = getPaymentStatus(s, selectedYear, selectedMonth);
+        return status !== 'NOT_ELIGIBLE';
+    });
+    
     let filteredPaymentStudents = eligibleForMonth.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
     if (paymentFilter === 'paid') {
-      filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0);
+      filteredPaymentStudents = filteredPaymentStudents.filter(s => {
+          const status = getPaymentStatus(s, selectedYear, selectedMonth);
+          return status === 'PAID' || status === 'SCHOLARSHIP';
+      });
     } else if (paymentFilter === 'unpaid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-        const isScholarship = Number(s.paymentAmount || 0) === 0;
-        if (isScholarship || s.payments[currentPeriodKey]) return false;
-        
-        return checkIsPaymentDue(s, selectedYear, selectedMonth);
+          const status = getPaymentStatus(s, selectedYear, selectedMonth);
+          return status === 'UNPAID';
       });
     }
 
@@ -1693,11 +1709,10 @@ export default function App() {
         <div className="space-y-4">
           {filteredPaymentStudents.map(student => {
             const amt = Number(student.paymentAmount || 0);
-            const isScholarship = amt <= 0;
-            const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
-            const isDue = checkIsPaymentDue(student, selectedYear, selectedMonth);
-            const pDate = getDisplayPaymentDay(student, selectedYear, selectedMonth);
+            // የክፍያ ሁኔታውን አዲሱን ማሽን ተጠቅመን እንወስናለን
+            const status = getPaymentStatus(student, selectedYear, selectedMonth);
+            const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth));
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
@@ -1708,37 +1723,38 @@ export default function App() {
                     className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት ይንኩ"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : (!isDue ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
-                      <CreditCard size={20} className={isScholarship ? 'text-blue-500' : isPaidForMonth ? 'text-[#2E7D32]' : (!isDue ? 'text-gray-500' : 'text-[#C62828]')} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${status === 'SCHOLARSHIP' ? 'bg-blue-50 border-blue-300' : status === 'PAID' ? 'bg-[#E8F5E9] border-green-400' : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE' ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
+                      <CreditCard size={20} className={status === 'SCHOLARSHIP' ? 'text-blue-500' : status === 'PAID' ? 'text-[#2E7D32]' : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE' ? 'text-gray-500' : 'text-[#C62828]')} />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
                         {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                        {student.instrumentType} | {isScholarship ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
-                        {!isScholarship ? ` (ቀን ${pDate})` : ''}
+                        {student.instrumentType} | {status === 'SCHOLARSHIP' ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
+                        {status !== 'SCHOLARSHIP' ? ` (ቀን ${pDate})` : ''}
                       </p>
                     </div>
                   </div>
                   
-                  {isScholarship ? (
+                  {status === 'SCHOLARSHIP' ? (
                     <span className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-100 text-blue-700 border border-blue-300">
                       ነፃ ተማሪ
                     </span>
-                  ) : !isDue && !isPaidForMonth ? (
+                  ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
                     <button 
                       onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
-                      className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-gray-100 text-gray-600 border border-gray-300"
+                      className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200"
+                      title="በቅድሚያ መክፈል ከፈለጉ ይንኩት"
                     >
                       ገና አልደረሰም
                     </button>
                   ) : (
                     <button 
                       onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
-                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm ${isPaidForMonth ? 'bg-green-100 text-[#2E7D32] border border-green-400' : 'bg-red-100 text-red-700 border border-red-300'}`}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400' : 'bg-red-100 text-red-700 border border-red-300'}`}
                     >
-                      {isPaidForMonth ? 'ከፍሏል' : 'አልከፈለም'}
+                      {status === 'PAID' ? 'ከፍሏል' : 'አልከፈለም'}
                     </button>
                   )}
                 </div>
@@ -1843,7 +1859,7 @@ export default function App() {
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
                 
-                const isDueRep = checkIsPaymentDue(s, selectedYear, selectedMonth);
+                const statusRep = getPaymentStatus(s, selectedYear, selectedMonth);
 
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -1856,7 +1872,7 @@ export default function App() {
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
                         <td className="border border-gray-300 p-2 font-black">
                           {s.status === 'active' ? (
-                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : (!isDueRep ? <span className="text-gray-500"> ገና አልደረሰም </span> : <span className="text-red-700"> አልከፈለም </span>)
+                            statusRep === 'PAID' ? <span className="text-green-700"> ከፍሏል </span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500"> ገና አልደረሰም </span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700"> ነፃ </span> : <span className="text-red-700"> አልከፈለም </span>
                           ) : (
                             <span className="text-gray-400 italic">አይመለከትም</span>
                           )}
