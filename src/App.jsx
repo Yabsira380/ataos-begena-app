@@ -55,7 +55,6 @@ const getEthiopianDate = (date = new Date()) => {
   };
 };
 
-// አዲስ፡ የፈረንጅን ቀን ወደሚያምር የኢትዮጵያ ቀን ጽሁፍ ቀያሪ
 const formatEthDate = (dateStr) => {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -83,7 +82,7 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   return selMonthIndex >= regMonthIndex;
 };
 
-// አዲስ፡ የክፍያ ቀን ካልተሞላ የተመዘገበበትን ቀን እንዲጠቀም ማድረጊያ
+// የክፍያ ቀን ካልተሞላ የተመዘገበበትን ቀን እንዲጠቀም ማድረጊያ
 const getStudentPaymentDay = (student) => {
   if (student.paymentDate && student.paymentDate !== '') {
     return parseInt(student.paymentDate, 10);
@@ -178,7 +177,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [academicViewType, setAcademicViewType] = useState('active');
 
-  const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
+  const ethiopianYears = ['2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
   const todayEth = getEthiopianDate();
@@ -230,7 +229,13 @@ export default function App() {
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
-  // የድሮ ዕዳ (Arrears) ማሰሊያ - በስማርት መንገድ 
+  // የወደፊት ወር መሆኑን ማረጋገጫ (ግሎባል)
+  const isFutureMonthGlob = parseInt(selectedYear, 10) > parseInt(todayEth.year, 10) || 
+                            (parseInt(selectedYear, 10) === parseInt(todayEth.year, 10) && 
+                            ethiopianMonths.indexOf(selectedMonth) > ethiopianMonths.indexOf(todayEth.month));
+  const isCurrentMonthGlob = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+
+  // የድሮ ዕዳ (Arrears) ማሰሊያ - ቀኑ ካለፈ በኋላ ብቻ እንዲቆጥር ተደርጓል
   const getUnpaidMonthsInfo = (student) => {
     const amt = Number(student.paymentAmount || 0);
     if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
@@ -251,8 +256,9 @@ export default function App() {
         if (isAfterReg && isBeforeOrEqualToday) {
           const key = `${y}_${m}`;
           if (!student.payments || !student.payments[key]) {
-            const isCurrentMonth = (yInt === tYInt && mIdx === tMIdx);
-            if (isCurrentMonth && tDay < pDate) {
+            const isCurrentMonthLoop = (yInt === tYInt && mIdx === tMIdx);
+            // ዛሬውኑ ወይም ቀኑ ከመድረሱ በፊት ከሆነ እንደ ዕዳ አትቁጠረው (tDay <= pDate)
+            if (isCurrentMonthLoop && tDay <= pDate) {
               continue; 
             }
             unpaidKeys.push(key);
@@ -671,12 +677,17 @@ export default function App() {
   
   const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
   
+  // ያልከፈሉትን ሲያሰላ ቀኑን ያላከበሩትን ብቻ (Future month ከሆኑ ወይም ገና ቀኑ ካልደረሰ አይቆጥርም)
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
     if (s.payments[currentPeriodKey]) return false;
-    const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+    if (isFutureMonthGlob) return false;
+    
     const pDate = getStudentPaymentDay(s);
     const todayD = parseInt(todayEth.day, 10);
-    if (isCurrentMonth && todayD < pDate) return false;
+    
+    // የዘንድሮ ወር ሆኖ ዛሬ ቀኑ ከመክፈያ ቀኑ እኩል ወይም በታች ከሆነ እንደ ዕዳ አትቁጠረው (tDay <= pDate)
+    if (isCurrentMonthGlob && todayD <= pDate) return false;
+    
     return true;
   }).length;
   
@@ -787,10 +798,10 @@ export default function App() {
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
-    const isCurrentMonthProfile = selectedYear === todayEth.year && selectedMonth === todayEth.month;
+    // Profile Modal Payment Logic Correction 
     const pDateProfile = getStudentPaymentDay(updatedStudentObj);
     const todayDProfile = parseInt(todayEth.day, 10);
-    const isNotYetDueProfile = !updatedStudentObj.payments[currentPeriodKey] && isCurrentMonthProfile && todayDProfile < pDateProfile;
+    const isNotYetDueProfile = !updatedStudentObj.payments[currentPeriodKey] && (isFutureMonthGlob || (isCurrentMonthGlob && todayDProfile <= pDateProfile));
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -1545,12 +1556,12 @@ export default function App() {
     } else if (paymentFilter === 'unpaid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
         if (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0) return false;
+        if (isFutureMonthGlob) return false;
         
-        const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
         const pDate = getStudentPaymentDay(s);
         const todayD = parseInt(todayEth.day, 10);
         
-        if (isCurrentMonth && todayD < pDate) return false; 
+        if (isCurrentMonthGlob && todayD <= pDate) return false; 
         
         return true;
       });
@@ -1585,10 +1596,9 @@ export default function App() {
             const isScholarship = amt <= 0;
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
-            const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
             const pDate = getStudentPaymentDay(student);
             const todayD = parseInt(todayEth.day, 10);
-            const isNotYetDue = !isPaidForMonth && isCurrentMonth && todayD < pDate;
+            const isNotYetDue = !isPaidForMonth && (isFutureMonthGlob || (isCurrentMonthGlob && todayD <= pDate));
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
@@ -1728,10 +1738,9 @@ export default function App() {
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
                 
-                const isCurrentMonthRep = selectedYear === todayEth.year && selectedMonth === todayEth.month;
                 const pDateRep = getStudentPaymentDay(s);
                 const todayDRep = parseInt(todayEth.day, 10);
-                const isNotYetDueRep = !s.payments[currentPeriodKey] && isCurrentMonthRep && todayDRep < pDateRep;
+                const isNotYetDueRep = !s.payments[currentPeriodKey] && (isFutureMonthGlob || (isCurrentMonthGlob && todayDRep <= pDateRep));
 
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
