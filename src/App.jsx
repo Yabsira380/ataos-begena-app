@@ -5,7 +5,7 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText
+  Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText, History
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -96,7 +96,7 @@ const getStudentPaymentDay = (student) => {
   return 1; // መረጃ ከሌለ በነባሪ ወሩ በገባ በ 1ኛው ቀን ይቆጠራል
 };
 
-// ---------------- አዲሱ እና አስተማማኙ የክፍያ ጊዜ መድረሱን ማረጋገጫ ማሽን ----------------
+// ---------------- የክፍያ ጊዜ መድረሱን ማረጋገጫ ማሽን ----------------
 const todayEthGlobal = getEthiopianDate();
 
 const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
@@ -109,16 +109,10 @@ const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
   
   const pDate = getStudentPaymentDay(student);
 
-  // 1. የምናየው ዓመት ገና ወደፊት የሚመጣ ከሆነ (ለምሳሌ እኛ 2016 ላይ ሆነን ሪፖርቱ 2017 ከሆነ) ገና አልደረሰም (false)
   if (cY > tY) return false; 
-  
-  // 2. የምናየው ዘንድሮ ሆኖ፣ ነገር ግን ወሩ ወደፊት የሚመጣ ከሆነ (ለምሳሌ እኛ ሐምሌ ላይ ሆነን ነሐሴን ብናይ) ገና አልደረሰም (false)
   if (cY === tY && cMIdx > tMIdx) return false; 
-  
-  // 3. የምናየው ትክክለኛውን የዘንድሮን ወር ሆኖ፣ ነገር ግን የዛሬው ቀን ከክፍያ ቀኑ (ለምሳሌ 15) ካነሰ ገና አልደረሰም (false)
   if (cY === tY && cMIdx === tMIdx && tDay < pDate) return false; 
   
-  // ከላይ ያሉትን ካለፈ፣ ጊዜው ደርሷል ወይንም አልፏል ማለት ነው! (true)
   return true; 
 };
 
@@ -228,6 +222,9 @@ export default function App() {
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
+  // አዲስ፡ የክፍያ ታሪክ (Payment History) ለማየት
+  const [selectedStudentForHistory, setSelectedStudentForHistory] = useState(null);
+
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({});
@@ -255,20 +252,17 @@ export default function App() {
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
-  // የድሮ ዕዳ ማሰሊያ (አዲሱን ማሽን በመጠቀም)
   const getUnpaidMonthsInfo = (student) => {
     const amt = Number(student.paymentAmount || 0);
     if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
     
     const unpaidKeys = [];
-    
     for (const y of ethiopianYears) {
       for (const m of ethiopianMonths) {
         const key = `${y}_${m}`;
         const isEligible = isEligibleForPaymentPeriod(student.registrationDate, y, m);
         const isDue = checkIsPaymentDue(student, y, m);
         
-        // በዚያ ወር መክፈል ከነበረበት፣ እና ክፍያው ከደረሰ፣ እና እስካሁን ካልከፈለ
         if (isEligible && isDue && (!student.payments || !student.payments[key])) {
           unpaidKeys.push(key);
         }
@@ -685,7 +679,6 @@ export default function App() {
   
   const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
   
-  // አዲሱ ያላከፈሉ ተማሪዎች ማጣሪያ (ቀኑ የደረሰባቸው ብቻ ይቆጠራሉ)
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
     if (s.payments[currentPeriodKey]) return false;
     return checkIsPaymentDue(s, selectedYear, selectedMonth);
@@ -694,7 +687,6 @@ export default function App() {
   const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
   const totalRevenueCollected = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
   
-  // የቀድሞ ዕዳ (Overdue) ዝርዝር አዲሱን ሎጂክ ይጠቀማል
   const overdueList = activeStudents.map(student => {
     const info = getUnpaidMonthsInfo(student);
     if (info.unpaidKeys.length > 0) return { ...student, ...info };
@@ -703,6 +695,106 @@ export default function App() {
   const overdueUnpaidCount = overdueList.length;
 
   // --- Views Renders ---
+  
+  // አዲስ፡ የክፍያ ታሪክ ማሳያ (Payment History Modal)
+  const renderPaymentHistoryModal = () => {
+    if (!selectedStudentForHistory) return null;
+    const student = students.find(s => s.id === selectedStudentForHistory.id) || selectedStudentForHistory;
+    
+    // ታሪኩን ማሰላት (ከተመዘገበበት ጊዜ ጀምሮ እስከ አሁን ድረስ ያለውን የክፍያ ሁኔታ)
+    const historyList = [];
+    const tYInt = parseInt(todayEthGlobal.year, 10);
+    const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
+
+    for (const y of ethiopianYears) {
+      for (const m of ethiopianMonths) {
+        if (isEligibleForPaymentPeriod(student.registrationDate, y, m)) {
+          const yInt = parseInt(y, 10);
+          const mIdx = ethiopianMonths.indexOf(m);
+          
+          // እስከ ዘንድሮ ወር ድረስ ብቻ አሳይ (ወይም 1 የወደፊት ወር)
+          if (yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx + 1)) {
+             const key = `${y}_${m}`;
+             const isPaid = student.payments?.[key] || false;
+             const isDue = checkIsPaymentDue(student, y, m);
+             historyList.push({ year: y, month: m, key, isPaid, isDue });
+          }
+        }
+      }
+    }
+    historyList.reverse(); // አዲሱ ወር ከላይ እንዲታይ
+
+    const pDate = getStudentPaymentDay(student);
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[250] animate-fade-in">
+        <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] flex flex-col border-2 border-[#D2B48C] shadow-2xl relative overflow-hidden">
+          
+          <div className="bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-4 flex items-center justify-between border-b-4 border-[#D4AF37] relative z-10 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="bg-[#D4AF37] p-1.5 rounded-lg"><History size={18} className="text-[#3E2723]" /></div>
+              <div>
+                <h3 className="font-extrabold text-sm font-serif text-[#FFF8E7]">የክፍያ ታሪክ ምርመራ</h3>
+                <p className="text-[10px] text-gray-300 font-bold">{student.name} (#{student.studentNo})</p>
+              </div>
+            </div>
+            <button onClick={() => setSelectedStudentForHistory(null)} className="p-2 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={18} /></button>
+          </div>
+
+          <div className="p-4 bg-amber-50/50 border-b border-[#EADDCA] flex-shrink-0">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
+                <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የተመዘገቡበት ቀን፦</span>
+                <span className="font-black text-[#3E2723]">{formatEthDate(student.registrationDate)}</span>
+              </div>
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
+                <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
+                <span className="font-black text-[#8B5A2B]">በየወሩ {pDate} ቀን</span>
+              </div>
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
+                <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ መጠን፦</span>
+                <span className="font-black text-[#3E2723] text-sm">{student.paymentAmount > 0 ? `${student.paymentAmount} ብር` : 'ነፃ ተማሪ'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {historyList.map((item, index) => (
+              <div key={item.key} className="bg-white rounded-2xl p-3 border-2 border-[#EADDCA] shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold text-xs ${item.isPaid ? 'bg-green-50 border-green-300 text-green-700' : (!item.isDue ? 'bg-gray-50 border-gray-300 text-gray-500' : 'bg-red-50 border-red-300 text-red-700')}`}>
+                    {item.month.substring(0, 3)}
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-[#3E2723] text-sm">{item.month} {item.year}</h4>
+                    <p className="text-[9px] text-gray-500 font-bold mt-0.5">
+                      {item.isPaid ? 'ተከፍሏል' : (!item.isDue ? `የክፍያ ቀኑ ገና ነው (${pDate})` : 'ክፍያው አጓትቷል')}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                   {item.isPaid ? (
+                     <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><CheckCircle size={12}/> ከፍሏል</span>
+                   ) : !item.isDue ? (
+                     <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><Clock size={12}/> አልደረሰም</span>
+                   ) : (
+                     <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1"><AlertCircle size={12}/> ዕዳ</span>
+                   )}
+                </div>
+              </div>
+            ))}
+            {historyList.length === 0 && (
+              <div className="text-center py-8 text-gray-400 font-bold text-xs">
+                <p>የክፍያ ታሪክ የለም።</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderLoginScreen = () => {
     return (
       <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -799,8 +891,8 @@ export default function App() {
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
-    // Profile Modal Payment Logic Correction (አዲሱን ማሽን መጠቀም)
     const isDueProfile = checkIsPaymentDue(updatedStudentObj, selectedYear, selectedMonth);
+    const pDateProfile = getStudentPaymentDay(updatedStudentObj);
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -986,7 +1078,7 @@ export default function App() {
                           {updatedStudentObj.payments[currentPeriodKey] ? (
                             <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
                           ) : !isDueProfile ? (
-                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {getStudentPaymentDay(updatedStudentObj)}) </span>
+                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {pDateProfile}) </span>
                           ) : (
                             <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
                           )}
@@ -1550,7 +1642,6 @@ export default function App() {
     const eligibleForMonth = activeStudents.filter(s => isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth));
     let filteredPaymentStudents = eligibleForMonth.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
-    // በክፍያ ማጣሪያ ላይ፣ የክፍያ ቀኑ ያልደረሰውን ከ "ያልከፈሉ" (Unpaid) ዝርዝር ውስጥ እንዳይታይ ማድረግ
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0);
     } else if (paymentFilter === 'unpaid') {
@@ -1558,7 +1649,7 @@ export default function App() {
         const isScholarship = Number(s.paymentAmount || 0) === 0;
         if (isScholarship || s.payments[currentPeriodKey]) return false;
         
-        // ጊዜው የደረሰበትን ብቻ አሳልፍ!
+        // ጊዜው የደረሰበትን ብቻ አሳልፍ (አዲሱን ማሽን በመጠቀም)
         return checkIsPaymentDue(s, selectedYear, selectedMonth);
       });
     }
@@ -1592,24 +1683,30 @@ export default function App() {
             const isScholarship = amt <= 0;
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
-            // 아ዲሱ ሎጂክ (ጊዜው ደርሷል ወይስ አልደረሰም?)
             const isDue = checkIsPaymentDue(student, selectedYear, selectedMonth);
             const pDate = getStudentPaymentDay(student);
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center space-x-3">
+                  
+                  {/* አዲስ፡ የተማሪውን ስም ሲነኩ የክፍያ ታሪክ ይከፈታል */}
+                  <div 
+                    onClick={() => setSelectedStudentForHistory(student)}
+                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
+                    title="የክፍያ ታሪክ ለማየት ይንኩ"
+                  >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : (!isDue ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
                       <CreditCard size={20} className={isScholarship ? 'text-blue-500' : isPaidForMonth ? 'text-[#2E7D32]' : (!isDue ? 'text-gray-500' : 'text-[#C62828]')} />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
+                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
+                        {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
+                      </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
                         {student.instrumentType} | {isScholarship ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
                         {!isScholarship ? ` (ቀን ${pDate})` : ''}
                       </p>
-                      <p className="text-[9px] text-gray-400">መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
                     </div>
                   </div>
                   
@@ -1812,6 +1909,7 @@ export default function App() {
   return (
     <>
       {renderReportModal()}
+      {renderPaymentHistoryModal()}
       {renderAiModal()}
 
       <div className="app-ui hide-on-print min-h-screen bg-[#FAF6EE] flex flex-col pb-24 relative overflow-x-hidden">
