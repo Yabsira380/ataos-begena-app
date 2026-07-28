@@ -93,8 +93,35 @@ const getStudentPaymentDay = (student) => {
       return parseInt(getEthiopianDate(d).day, 10);
     }
   }
-  return 1;
+  return 1; // መረጃ ከሌለ በነባሪ ወሩ በገባ በ 1ኛው ቀን ይቆጠራል
 };
+
+// ---------------- አዲሱ እና አስተማማኙ የክፍያ ጊዜ መድረሱን ማረጋገጫ ማሽን ----------------
+const todayEthGlobal = getEthiopianDate();
+
+const checkIsPaymentDue = (student, chkYearStr, chkMonthStr) => {
+  const cY = parseInt(chkYearStr, 10);
+  const cMIdx = ethiopianMonths.indexOf(chkMonthStr);
+  
+  const tY = parseInt(todayEthGlobal.year, 10);
+  const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
+  const tDay = parseInt(todayEthGlobal.day, 10);
+  
+  const pDate = getStudentPaymentDay(student);
+
+  // 1. የምናየው ዓመት ገና ወደፊት የሚመጣ ከሆነ (ለምሳሌ እኛ 2016 ላይ ሆነን ሪፖርቱ 2017 ከሆነ) ገና አልደረሰም (false)
+  if (cY > tY) return false; 
+  
+  // 2. የምናየው ዘንድሮ ሆኖ፣ ነገር ግን ወሩ ወደፊት የሚመጣ ከሆነ (ለምሳሌ እኛ ሐምሌ ላይ ሆነን ነሐሴን ብናይ) ገና አልደረሰም (false)
+  if (cY === tY && cMIdx > tMIdx) return false; 
+  
+  // 3. የምናየው ትክክለኛውን የዘንድሮን ወር ሆኖ፣ ነገር ግን የዛሬው ቀን ከክፍያ ቀኑ (ለምሳሌ 15) ካነሰ ገና አልደረሰም (false)
+  if (cY === tY && cMIdx === tMIdx && tDay < pDate) return false; 
+  
+  // ከላይ ያሉትን ካለፈ፣ ጊዜው ደርሷል ወይንም አልፏል ማለት ነው! (true)
+  return true; 
+};
+
 
 // --- Custom Spiritual Icons & SVG ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
@@ -180,10 +207,9 @@ export default function App() {
   const ethiopianYears = ['2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
-  const todayEth = getEthiopianDate();
-  const [selectedYear, setSelectedYear] = useState(todayEth.year);
-  const [selectedMonth, setSelectedMonth] = useState(todayEth.month);
-  const [selectedDay, setSelectedDay] = useState(todayEth.day);
+  const [selectedYear, setSelectedYear] = useState(todayEthGlobal.year);
+  const [selectedMonth, setSelectedMonth] = useState(todayEthGlobal.month);
+  const [selectedDay, setSelectedDay] = useState(todayEthGlobal.day);
   const currentPeriodKey = `${selectedYear}_${selectedMonth}`;
 
   const [attendanceFilter, setAttendanceFilter] = useState('all'); 
@@ -229,40 +255,22 @@ export default function App() {
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
-  // የወደፊት ወር መሆኑን ማረጋገጫ (ግሎባል)
-  const isFutureMonthGlob = parseInt(selectedYear, 10) > parseInt(todayEth.year, 10) || 
-                            (parseInt(selectedYear, 10) === parseInt(todayEth.year, 10) && 
-                            ethiopianMonths.indexOf(selectedMonth) > ethiopianMonths.indexOf(todayEth.month));
-  const isCurrentMonthGlob = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-
-  // የድሮ ዕዳ (Arrears) ማሰሊያ - ቀኑ ካለፈ በኋላ ብቻ እንዲቆጥር ተደርጓል
+  // የድሮ ዕዳ ማሰሊያ (አዲሱን ማሽን በመጠቀም)
   const getUnpaidMonthsInfo = (student) => {
     const amt = Number(student.paymentAmount || 0);
     if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
     
-    const tYInt = parseInt(todayEth.year, 10);
-    const tMIdx = ethiopianMonths.indexOf(todayEth.month);
-    const tDay = parseInt(todayEth.day, 10);
-    const pDate = getStudentPaymentDay(student);
     const unpaidKeys = [];
     
     for (const y of ethiopianYears) {
-      const yInt = parseInt(y, 10);
       for (const m of ethiopianMonths) {
-        const mIdx = ethiopianMonths.indexOf(m);
-        const isAfterReg = isEligibleForPaymentPeriod(student.registrationDate, y, m);
-        const isBeforeOrEqualToday = yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx);
+        const key = `${y}_${m}`;
+        const isEligible = isEligibleForPaymentPeriod(student.registrationDate, y, m);
+        const isDue = checkIsPaymentDue(student, y, m);
         
-        if (isAfterReg && isBeforeOrEqualToday) {
-          const key = `${y}_${m}`;
-          if (!student.payments || !student.payments[key]) {
-            const isCurrentMonthLoop = (yInt === tYInt && mIdx === tMIdx);
-            // ዛሬውኑ ወይም ቀኑ ከመድረሱ በፊት ከሆነ እንደ ዕዳ አትቁጠረው (tDay <= pDate)
-            if (isCurrentMonthLoop && tDay <= pDate) {
-              continue; 
-            }
-            unpaidKeys.push(key);
-          }
+        // በዚያ ወር መክፈል ከነበረበት፣ እና ክፍያው ከደረሰ፣ እና እስካሁን ካልከፈለ
+        if (isEligible && isDue && (!student.payments || !student.payments[key])) {
+          unpaidKeys.push(key);
         }
       }
     }
@@ -677,23 +685,16 @@ export default function App() {
   
   const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
   
-  // ያልከፈሉትን ሲያሰላ ቀኑን ያላከበሩትን ብቻ (Future month ከሆኑ ወይም ገና ቀኑ ካልደረሰ አይቆጥርም)
+  // አዲሱ ያላከፈሉ ተማሪዎች ማጣሪያ (ቀኑ የደረሰባቸው ብቻ ይቆጠራሉ)
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
     if (s.payments[currentPeriodKey]) return false;
-    if (isFutureMonthGlob) return false;
-    
-    const pDate = getStudentPaymentDay(s);
-    const todayD = parseInt(todayEth.day, 10);
-    
-    // የዘንድሮ ወር ሆኖ ዛሬ ቀኑ ከመክፈያ ቀኑ እኩል ወይም በታች ከሆነ እንደ ዕዳ አትቁጠረው (tDay <= pDate)
-    if (isCurrentMonthGlob && todayD <= pDate) return false;
-    
-    return true;
+    return checkIsPaymentDue(s, selectedYear, selectedMonth);
   }).length;
   
   const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
   const totalRevenueCollected = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
   
+  // የቀድሞ ዕዳ (Overdue) ዝርዝር አዲሱን ሎጂክ ይጠቀማል
   const overdueList = activeStudents.map(student => {
     const info = getUnpaidMonthsInfo(student);
     if (info.unpaidKeys.length > 0) return { ...student, ...info };
@@ -798,10 +799,8 @@ export default function App() {
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
-    // Profile Modal Payment Logic Correction 
-    const pDateProfile = getStudentPaymentDay(updatedStudentObj);
-    const todayDProfile = parseInt(todayEth.day, 10);
-    const isNotYetDueProfile = !updatedStudentObj.payments[currentPeriodKey] && (isFutureMonthGlob || (isCurrentMonthGlob && todayDProfile <= pDateProfile));
+    // Profile Modal Payment Logic Correction (አዲሱን ማሽን መጠቀም)
+    const isDueProfile = checkIsPaymentDue(updatedStudentObj, selectedYear, selectedMonth);
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -986,8 +985,8 @@ export default function App() {
                           <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
                           {updatedStudentObj.payments[currentPeriodKey] ? (
                             <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
-                          ) : isNotYetDueProfile ? (
-                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {pDateProfile}) </span>
+                          ) : !isDueProfile ? (
+                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {getStudentPaymentDay(updatedStudentObj)}) </span>
                           ) : (
                             <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
                           )}
@@ -1551,19 +1550,16 @@ export default function App() {
     const eligibleForMonth = activeStudents.filter(s => isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth));
     let filteredPaymentStudents = eligibleForMonth.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
+    // በክፍያ ማጣሪያ ላይ፣ የክፍያ ቀኑ ያልደረሰውን ከ "ያልከፈሉ" (Unpaid) ዝርዝር ውስጥ እንዳይታይ ማድረግ
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0);
     } else if (paymentFilter === 'unpaid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-        if (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0) return false;
-        if (isFutureMonthGlob) return false;
+        const isScholarship = Number(s.paymentAmount || 0) === 0;
+        if (isScholarship || s.payments[currentPeriodKey]) return false;
         
-        const pDate = getStudentPaymentDay(s);
-        const todayD = parseInt(todayEth.day, 10);
-        
-        if (isCurrentMonthGlob && todayD <= pDate) return false; 
-        
-        return true;
+        // ጊዜው የደረሰበትን ብቻ አሳልፍ!
+        return checkIsPaymentDue(s, selectedYear, selectedMonth);
       });
     }
 
@@ -1596,16 +1592,16 @@ export default function App() {
             const isScholarship = amt <= 0;
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
+            // 아ዲሱ ሎጂክ (ጊዜው ደርሷል ወይስ አልደረሰም?)
+            const isDue = checkIsPaymentDue(student, selectedYear, selectedMonth);
             const pDate = getStudentPaymentDay(student);
-            const todayD = parseInt(todayEth.day, 10);
-            const isNotYetDue = !isPaidForMonth && (isFutureMonthGlob || (isCurrentMonthGlob && todayD <= pDate));
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : (isNotYetDue ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
-                      <CreditCard size={20} className={isScholarship ? 'text-blue-500' : isPaidForMonth ? 'text-[#2E7D32]' : (isNotYetDue ? 'text-gray-500' : 'text-[#C62828]')} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isScholarship ? 'bg-blue-50 border-blue-300' : isPaidForMonth ? 'bg-[#E8F5E9] border-green-400' : (!isDue ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
+                      <CreditCard size={20} className={isScholarship ? 'text-blue-500' : isPaidForMonth ? 'text-[#2E7D32]' : (!isDue ? 'text-gray-500' : 'text-[#C62828]')} />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
@@ -1621,7 +1617,7 @@ export default function App() {
                     <span className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-100 text-blue-700 border border-blue-300">
                       ነፃ ተማሪ
                     </span>
-                  ) : isNotYetDue ? (
+                  ) : !isDue && !isPaidForMonth ? (
                     <button 
                       onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
                       className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-gray-100 text-gray-600 border border-gray-300"
@@ -1640,7 +1636,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ወር ክፍያ የሚጠበቅበት ወይም የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
@@ -1738,9 +1734,7 @@ export default function App() {
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
                 
-                const pDateRep = getStudentPaymentDay(s);
-                const todayDRep = parseInt(todayEth.day, 10);
-                const isNotYetDueRep = !s.payments[currentPeriodKey] && (isFutureMonthGlob || (isCurrentMonthGlob && todayDRep <= pDateRep));
+                const isDueRep = checkIsPaymentDue(s, selectedYear, selectedMonth);
 
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -1753,7 +1747,7 @@ export default function App() {
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
                         <td className="border border-gray-300 p-2 font-black">
                           {s.status === 'active' ? (
-                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : (isNotYetDueRep ? <span className="text-gray-500"> ገና አልደረሰም </span> : <span className="text-red-700"> አልከፈለም </span>)
+                            s.payments[currentPeriodKey] ? <span className="text-green-700"> ከፍሏል </span> : (!isDueRep ? <span className="text-gray-500"> ገና አልደረሰም </span> : <span className="text-red-700"> አልከፈለም </span>)
                           ) : (
                             <span className="text-gray-400 italic">አይመለከትም</span>
                           )}
