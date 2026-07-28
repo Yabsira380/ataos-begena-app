@@ -55,6 +55,15 @@ const getEthiopianDate = (date = new Date()) => {
   };
 };
 
+// አዲስ፡ የፈረንጅን ቀን ወደሚያምር የኢትዮጵያ ቀን ጽሁፍ ቀያሪ
+const formatEthDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const eth = getEthiopianDate(d);
+  return `${eth.month} ${eth.day}፣ ${eth.year}`;
+};
+
 // ---------------- የክፍያ ወር እና የመመዝገቢያ ወር ማወዳደሪያ ----------------
 const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) => {
   if (!studentRegDateStr) return true;
@@ -72,6 +81,20 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   const selMonthIndex = ethiopianMonths.indexOf(selMonthStr);
   
   return selMonthIndex >= regMonthIndex;
+};
+
+// አዲስ፡ የክፍያ ቀን ካልተሞላ የተመዘገበበትን ቀን እንዲጠቀም ማድረጊያ
+const getStudentPaymentDay = (student) => {
+  if (student.paymentDate && student.paymentDate !== '') {
+    return parseInt(student.paymentDate, 10);
+  }
+  if (student.registrationDate) {
+    const d = new Date(student.registrationDate);
+    if (!isNaN(d.getTime())) {
+      return parseInt(getEthiopianDate(d).day, 10);
+    }
+  }
+  return 1;
 };
 
 // --- Custom Spiritual Icons & SVG ---
@@ -142,7 +165,6 @@ const compressImage = (file) => {
 };
 
 export default function App() {
-  // --- Authentication States ---
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -150,7 +172,6 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  // --- Main App States ---
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,7 +181,6 @@ export default function App() {
   const ethiopianYears = ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028'];
   const instrumentsList = ['በገና', 'ክራር', 'ከበሮ', 'ማሲንቆ', 'ዋሽንት'];
 
-  // የዛሬን የኢትዮጵያ ቀን አውቶማቲክ ማስያዣ
   const todayEth = getEthiopianDate();
   const [selectedYear, setSelectedYear] = useState(todayEth.year);
   const [selectedMonth, setSelectedMonth] = useState(todayEth.month);
@@ -175,7 +195,6 @@ export default function App() {
   const [infoSearch, setInfoSearch] = useState('');
   const [confirmModal, setConfirmModal] = useState({ show: false, title: 'የውሳኔ ማረጋገጫ', message: '', onConfirm: () => {} });
 
-  // --- AI States ---
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -183,13 +202,11 @@ export default function App() {
 
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
-  // --- Profile Editing States ---
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({});
 
-  // --- Lessons (Ataos) States ---
   const [selectedLessonInstrument, setSelectedLessonInstrument] = useState('በገና');
   const [isEditingLesson, setIsEditingLesson] = useState(null);
   const [editLessonForm, setEditLessonForm] = useState({ title: '', content: '' });
@@ -213,7 +230,7 @@ export default function App() {
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
-  // የድሮ ዕዳ (Arrears) ማሰሊያ - ቀኑ ካልደረሰ እንደ እዳ እንዳይቆጥረው ተስተካክሏል
+  // የድሮ ዕዳ (Arrears) ማሰሊያ - በስማርት መንገድ 
   const getUnpaidMonthsInfo = (student) => {
     const amt = Number(student.paymentAmount || 0);
     if (amt <= 0) return { unpaidKeys: [], totalArrears: 0 };
@@ -221,7 +238,7 @@ export default function App() {
     const tYInt = parseInt(todayEth.year, 10);
     const tMIdx = ethiopianMonths.indexOf(todayEth.month);
     const tDay = parseInt(todayEth.day, 10);
-    const pDate = parseInt(student.paymentDate || '1', 10);
+    const pDate = getStudentPaymentDay(student);
     const unpaidKeys = [];
     
     for (const y of ethiopianYears) {
@@ -235,7 +252,6 @@ export default function App() {
           const key = `${y}_${m}`;
           if (!student.payments || !student.payments[key]) {
             const isCurrentMonth = (yInt === tYInt && mIdx === tMIdx);
-            // የዘንድሮ ወር ሆኖ ነገር ግን የክፍያ ቀኑ ገና ካልደረሰ እንደ እዳ አይቆጠርም
             if (isCurrentMonth && tDay < pDate) {
               continue; 
             }
@@ -247,7 +263,6 @@ export default function App() {
     return { unpaidKeys, totalArrears: unpaidKeys.length * amt };
   };
 
-  // --- Authentication Listener & Setup ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -269,7 +284,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- Fetch Students from Supabase ---
   const fetchStudents = async () => {
     setLoading(true);
     try {
@@ -657,11 +671,10 @@ export default function App() {
   
   const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => s.payments[currentPeriodKey]).length;
   
-  // ያልከፈሉትን ሲያሰላ ቀኑን ያላከበሩትን ብቻ እንዲያሰላ ማስተካከያ (ገና ቀኑ ያልደረሰን እንደ ዕዳ አይቆጥርም)
   const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
     if (s.payments[currentPeriodKey]) return false;
     const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-    const pDate = parseInt(s.paymentDate || '1', 10);
+    const pDate = getStudentPaymentDay(s);
     const todayD = parseInt(todayEth.day, 10);
     if (isCurrentMonth && todayD < pDate) return false;
     return true;
@@ -774,9 +787,8 @@ export default function App() {
     const isScholarship = Number(updatedStudentObj.paymentAmount || 0) === 0;
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
-    // Profile Modal Payment Logic Correction 
     const isCurrentMonthProfile = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-    const pDateProfile = parseInt(updatedStudentObj.paymentDate || '1', 10);
+    const pDateProfile = getStudentPaymentDay(updatedStudentObj);
     const todayDProfile = parseInt(todayEth.day, 10);
     const isNotYetDueProfile = !updatedStudentObj.payments[currentPeriodKey] && isCurrentMonthProfile && todayDProfile < pDateProfile;
 
@@ -868,7 +880,10 @@ export default function App() {
                 </div>
 
                 <div>
-                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የተመዘገቡበት ቀን</label>
+                   <label className="text-[10px] font-black text-[#5C4033] block mb-1 flex items-center">
+                     የተመዘገቡበት ቀን 
+                     <span className="text-[#8B5A2B] ml-2 text-[9px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
+                   </label>
                    <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
                 </div>
 
@@ -895,7 +910,7 @@ export default function App() {
               </div>
               <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
                 <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
-                <span className="font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{updatedStudentObj.registrationDate || 'ያልተጠቀሰ'}</span>
+                <span className="font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{formatEthDate(updatedStudentObj.registrationDate)}</span>
               </div>
               
               <div className="bg-white rounded-2xl p-4 border-2 border-[#EADDCA] shadow-sm relative">
@@ -1142,7 +1157,9 @@ export default function App() {
                 value={newStudent.registrationDate} 
                 onChange={(e) => setNewStudent({...newStudent, registrationDate: e.target.value})} 
               />
-              <p className="text-[10px] text-gray-500 mt-1 pl-1">ይህ ቀን የተማሪውን የወር ክፍያ ማሳሰቢያ ዑደት ለማስላት በቁልፍነት ያገለግላል።</p>
+              <p className="text-[10px] text-gray-500 mt-1 pl-1">
+                በኢትዮጵያ፦ <span className="font-bold text-[#8B5A2B]">{formatEthDate(newStudent.registrationDate)}</span>
+              </p>
             </div>
 
             <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
@@ -1291,7 +1308,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
-                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{student.instrumentType} | መዝገብ፦ {student.registrationDate || '-'}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{student.instrumentType} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
                 </div>
               </div>
 
@@ -1523,7 +1540,6 @@ export default function App() {
     const eligibleForMonth = activeStudents.filter(s => isEligibleForPaymentPeriod(s.registrationDate, selectedYear, selectedMonth));
     let filteredPaymentStudents = eligibleForMonth.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
-    // በክፍያ ማጣሪያ ላይ፣ የክፍያ ቀኑ ያልደረሰውን ከ "ያልከፈሉ" (Unpaid) ዝርዝር ውስጥ እንዳይታይ ማድረግ
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0);
     } else if (paymentFilter === 'unpaid') {
@@ -1531,10 +1547,9 @@ export default function App() {
         if (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0) return false;
         
         const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-        const pDate = parseInt(s.paymentDate || '1', 10);
+        const pDate = getStudentPaymentDay(s);
         const todayD = parseInt(todayEth.day, 10);
         
-        // ቀኑ ገና ከሆነ አታሳየው
         if (isCurrentMonth && todayD < pDate) return false; 
         
         return true;
@@ -1570,9 +1585,8 @@ export default function App() {
             const isScholarship = amt <= 0;
             const isPaidForMonth = student.payments[currentPeriodKey] || false;
             
-            // የክፍያ ቀኑ መድረሱን ማረጋገጫ
             const isCurrentMonth = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-            const pDate = parseInt(student.paymentDate || '1', 10);
+            const pDate = getStudentPaymentDay(student);
             const todayD = parseInt(todayEth.day, 10);
             const isNotYetDue = !isPaidForMonth && isCurrentMonth && todayD < pDate;
             
@@ -1587,9 +1601,9 @@ export default function App() {
                       <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[9px] bg-[#FAF3E0] px-1.5 rounded-full text-gray-600 font-bold">#{student.studentNo}</span></h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
                         {student.instrumentType} | {isScholarship ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
-                        {student.paymentDate && !isScholarship ? ` (ቀን ${student.paymentDate})` : ''}
+                        {!isScholarship ? ` (ቀን ${pDate})` : ''}
                       </p>
-                      <p className="text-[9px] text-gray-400">መዝገብ፦ {student.registrationDate || '-'}</p>
+                      <p className="text-[9px] text-gray-400">መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
                     </div>
                   </div>
                   
@@ -1714,9 +1728,8 @@ export default function App() {
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
                 
-                // Report Modal Payment Logic Correction
                 const isCurrentMonthRep = selectedYear === todayEth.year && selectedMonth === todayEth.month;
-                const pDateRep = parseInt(s.paymentDate || '1', 10);
+                const pDateRep = getStudentPaymentDay(s);
                 const todayDRep = parseInt(todayEth.day, 10);
                 const isNotYetDueRep = !s.payments[currentPeriodKey] && isCurrentMonthRep && todayDRep < pDateRep;
 
@@ -1725,7 +1738,7 @@ export default function App() {
                     <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
                     <td className="border border-gray-300 p-2 font-bold">{s.name}</td>
                     <td className="border border-gray-300 p-2">{s.phone}</td>
-                    <td className="border border-gray-300 p-2 font-mono text-[11px]">{s.registrationDate || '-'}</td>
+                    <td className="border border-gray-300 p-2 font-mono text-[11px]">{formatEthDate(s.registrationDate)}</td>
                     <td className="border border-gray-300 p-2">{s.instrumentType || '-'}</td>
                     {reportConfig.type !== 'academic' && <>
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
@@ -1771,7 +1784,6 @@ export default function App() {
     );
   };
 
-  // --- Auth Loading Screen ---
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
