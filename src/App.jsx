@@ -294,7 +294,6 @@ export default function App() {
   const [editLessonForm, setEditLessonForm] = useState({ title: '', content: '' });
 
   const [tempScores, setTempScores] = useState({});
-  // የቅኝት ውጤቶች መያዣ (State)
   const [kignitScores, setKignitScores] = useState({});
   
   const [reportConfig, setReportConfig] = useState({
@@ -386,11 +385,10 @@ export default function App() {
         payments: s.payments || {},
         attendance: s.attendance || {},
         lesson_progress: s.lesson_progress || {},
-        kignit_scores: s.kignit_scores || {} // የቅኝት ዳታ ከዳታቤዝ መሳቢያ
+        kignit_scores: s.kignit_scores || {}
       }));
       setStudents(mappedData);
 
-      // ሪፖርት ላይ እና የውጤት መሙያ ላይ ቶሎ እንዲወጣ ወደ State ማስገቢያ
       const initialKignit = {};
       mappedData.forEach(s => {
          if (s.kignit_scores) initialKignit[s.id] = s.kignit_scores;
@@ -675,7 +673,6 @@ export default function App() {
     });
   };
 
-  // የፈተና ውጤት እና የየቅኝቱን ውጤት ሴቭ የሚያደርግ ማስተካከያ
   const handleExamScoreSubmit = (studentId, score, kignitData = null) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
@@ -1527,9 +1524,9 @@ export default function App() {
                       <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.selamta) || 0) + (Number(s.wanen) || 0) + (Number(s.silechernetih) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
                     </div>
                   </div>
-                ) : student.instrumentType === 'ክራር' ? (
+                ) : (student.instrumentType === 'ክራር' || student.instrumentType === 'ማሲንቆ') ? (
                   <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                    <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የክራር ቅኝት ውጤት መሙያ </span>
+                    <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የ{student.instrumentType} ቅኝት ውጤት መሙያ </span>
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1 truncate">ትዝታ</label>
@@ -1950,14 +1947,18 @@ export default function App() {
               <tr className="bg-gray-100 text-gray-700">
                 <th className="border border-gray-300 p-2"> መ.ቁ </th>
                 <th className="border border-gray-300 p-2"> ሙሉ ስም </th>
+                {reportConfig.type !== 'academic' && (
+                   <>
+                     <th className="border border-gray-300 p-2"> ስልክ </th>
+                     <th className="border border-gray-300 p-2"> የተመዘገቡበት ቀን </th>
+                   </>
+                )}
                 <th className="border border-gray-300 p-2"> መሳሪያ </th>
-                {reportConfig.type !== 'academic' && <>
-                  {(reportConfig.type === 'general' || reportConfig.type === 'payment') && <th className="border border-gray-300 p-2"> የ {selectedMonth} ክፍያ </th>}
-                  {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && <th className="border border-gray-300 p-2 text-center"> መገኘት </th>}
-                </>}
+                {reportConfig.type === 'general' && <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>}
+                {reportConfig.type === 'payment' && <th className="border border-gray-300 p-2 text-center"> የ {selectedMonth} ክፍያ </th>}
+                {reportConfig.type === 'attendance' && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት) </th>}
                 {reportConfig.type === 'academic' && (
                   <>
-                    {/* ወደ ጎን የተደረደሩ የቅኝት ርዕሶች */}
                     <th className="border border-gray-300 p-2 text-center text-[10px]">ሰላምታ / ትዝታ</th>
                     <th className="border border-gray-300 p-2 text-center text-[10px]">ዋኔን / አንቺሆዬ</th>
                     <th className="border border-gray-300 p-2 text-center text-[10px]">ቸርነትህ / ባቲ</th>
@@ -1978,60 +1979,70 @@ export default function App() {
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
                     <td className="border border-gray-300 p-2 font-bold">{s.name}</td>
+                    {reportConfig.type !== 'academic' && (
+                       <>
+                         <td className="border border-gray-300 p-2">{s.phone}</td>
+                         <td className="border border-gray-300 p-2 font-mono text-[11px]">{formatEthDate(s.registrationDate)}</td>
+                       </>
+                    )}
                     <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{s.instrumentType || '-'}</td>
-                    {reportConfig.type !== 'academic' && <>
-                      {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
-                        <td className="border border-gray-300 p-2 font-black">
-                          {s.status === 'active' ? (
-                            statusRep === 'PAID' ? <span className="text-green-700"> ከፍሏል </span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500"> ገና አልደረሰም </span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700"> ነፃ </span> : <span className="text-red-700"> አልከፈለም </span>
-                          ) : (
-                            <span className="text-gray-400 italic">አይመለከትም</span>
-                          )}
+                    
+                    {reportConfig.type === 'general' && (
+                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? `${s.examResult}%` : '-'}</td>
+                    )}
+
+                    {reportConfig.type === 'payment' && (
+                        <td className="border border-gray-300 p-2 text-center font-black">
+                            {s.status === 'active' ? (
+                              statusRep === 'PAID' ? <span className="text-green-700"> ከፍሏል </span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500"> ገና አልደረሰም </span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700"> ነፃ </span> : <span className="text-red-700"> አልከፈለም </span>
+                            ) : (
+                              <span className="text-gray-400 italic">አይመለከትም</span>
+                            )}
                         </td>
-                      )}
-                      {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && (
+                    )}
+
+                    {reportConfig.type === 'attendance' && (
                         <td className="border border-gray-300 p-2 font-bold text-center">{monthAttendanceCount}</td>
-                      )}
-                    </>}
+                    )}
+
                     {reportConfig.type === 'academic' && (
-                      <>
-                        {/* ወደ ጎን የተደረደሩ የቅኝት ውጤቶች መረጃ */}
-                        {(() => {
-                            const ks = s.kignit_scores || kignitScores[s.id] || {};
-                            if (s.instrumentType === 'በገና') {
-                                return (
-                                    <>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.selamta || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.wanen || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.silechernetih || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px] bg-gray-100">-</td>
-                                    </>
-                                );
-                            } else if (s.instrumentType === 'ክራር') {
-                                return (
-                                    <>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.tizita || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.anchihoye || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.bati_minor || '-'}</td>
-                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.ambasel || '-'}</td>
-                                    </>
-                                );
-                            } else {
-                                return (
-                                    <>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
-                                    </>
-                                );
-                            }
-                        })()}
-                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? s.examResult : '-'}</td>
-                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">
-                          {s.status === 'completed' ? <span className="text-green-700">ያጠናቀቀ</span> : s.status === 'dropped' ? <span className="text-red-700">ያቋረጠ</span> : <span className="text-blue-700">በመማር ላይ</span>}
-                        </td>
-                      </>
+                        <>
+                          {(() => {
+                              const ks = s.kignit_scores || kignitScores[s.id] || {};
+                              if (s.instrumentType === 'በገና') {
+                                  return (
+                                      <>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.selamta || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.wanen || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.silechernetih || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px] bg-gray-100">-</td>
+                                      </>
+                                  );
+                              } else if (s.instrumentType === 'ክራር' || s.instrumentType === 'ማሲንቆ') {
+                                  return (
+                                      <>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.tizita || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.anchihoye || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.bati_minor || '-'}</td>
+                                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.ambasel || '-'}</td>
+                                      </>
+                                  );
+                              } else {
+                                  return (
+                                      <>
+                                          <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                          <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                          <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                          <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                      </>
+                                  );
+                              }
+                          })()}
+                          <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? s.examResult : '-'}</td>
+                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">
+                            {s.status === 'completed' ? <span className="text-green-700">ያጠናቀቀ</span> : s.status === 'dropped' ? <span className="text-red-700">ያቋረጠ</span> : <span className="text-blue-700">በመማር ላይ</span>}
+                          </td>
+                        </>
                     )}
                   </tr>
                 );
