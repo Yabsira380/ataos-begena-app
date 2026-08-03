@@ -81,6 +81,7 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   
   return selMonthIndex >= regMonthIndex;
 };
+
 // ---------------- ማዕከላዊ የክፍያ ማሽን ----------------
 const todayEthGlobal = getEthiopianDate();
 
@@ -143,6 +144,7 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
 
     return 'UNPAID';
 };
+
 // --- Custom Spiritual Icons & SVG ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
   <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -292,7 +294,7 @@ export default function App() {
   const [editLessonForm, setEditLessonForm] = useState({ title: '', content: '' });
 
   const [tempScores, setTempScores] = useState({});
-  // አዲስ የተጨመረው የቅኝት ውጤቶች መያዣ (State)
+  // የቅኝት ውጤቶች መያዣ (State)
   const [kignitScores, setKignitScores] = useState({});
   
   const [reportConfig, setReportConfig] = useState({
@@ -383,9 +385,18 @@ export default function App() {
         registrationDate: s.registration_date,
         payments: s.payments || {},
         attendance: s.attendance || {},
-        lesson_progress: s.lesson_progress || {}
+        lesson_progress: s.lesson_progress || {},
+        kignit_scores: s.kignit_scores || {} // የቅኝት ዳታ ከዳታቤዝ መሳቢያ
       }));
       setStudents(mappedData);
+
+      // ሪፖርት ላይ እና የውጤት መሙያ ላይ ቶሎ እንዲወጣ ወደ State ማስገቢያ
+      const initialKignit = {};
+      mappedData.forEach(s => {
+         if (s.kignit_scores) initialKignit[s.id] = s.kignit_scores;
+      });
+      setKignitScores(initialKignit);
+
     } catch (err) {
       showNotification('የተማሪ መረጃዎችን ለማምጣት አልተቻለም!', 'error');
     } finally {
@@ -478,6 +489,7 @@ export default function App() {
     });
     setIsEditingProfile(true);
   };
+
   const saveProfileChanges = async (studentId) => {
     if (!editFormData.name || !editFormData.phone) {
       showNotification("እባክዎ ሙሉ ስም እና ስልክ ቁጥር መሙላቶን ያረጋግጡ!", "error");
@@ -624,6 +636,7 @@ export default function App() {
         toggleAttendanceForDay(student.id, periodKey, day); showNotification(`የ ${student.name} መገኘት ተስተካክሏል።`, 'success');
     });
   };
+
   const handleCalendarDayClick = (student, day) => {
     const isPresent = student.attendance?.[currentPeriodKey]?.[day] || false;
     const nextStateAmharic = isPresent ? 'እንዳልመጣ (በማቅረት)' : 'እንደመጣ (በመገኘት)';
@@ -657,14 +670,18 @@ export default function App() {
     });
   };
 
-  const handleExamScoreSubmit = (studentId, score) => {
+  // የፈተና ውጤት እና የየቅኝቱን ውጤት ሴቭ የሚያደርግ ማስተካከያ
+  const handleExamScoreSubmit = (studentId, score, kignitData = null) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
     triggerConfirmation(`የተማሪ "${student.name}" የፈተና ውጤት ወደ ${score}% እንዲቀየር ይፈልጋሉ?`, 'የፈተና ውጤት ማረጋገጫ', async () => {
-        const success = await updateStudentInDb(studentId, { exam_result: score });
+        const payload = { exam_result: score };
+        if (kignitData) payload.kignit_scores = kignitData;
+        const success = await updateStudentInDb(studentId, payload);
         if (success) showNotification('ውጤቱ በተሳካ ሁኔታ ተመዝግቧል!', 'success');
     });
   };
+
   const toggleStudentLessonProgress = async (student, lessonId) => {
     const currentProgress = { ...(student.lesson_progress || {}) };
     currentProgress[lessonId] = !currentProgress[lessonId]; 
@@ -685,6 +702,7 @@ export default function App() {
     const { error } = await supabase.from('lessons').update(editLessonForm).eq('id', id);
     if (!error) { setIsEditingLesson(null); fetchLessons(); showNotification('ትምህርቱ ተስተካክሏል!', 'success'); }
   };
+
   const deleteLesson = async (id) => {
     triggerConfirmation('ይህንን ትምህርት ሙሉ በሙሉ ለማጥፋት እርግጠኛ ነዎት?', 'ትምህርት ማጥፊያ', async () => {
       const { error } = await supabase.from('lessons').delete().eq('id', id);
@@ -873,6 +891,7 @@ export default function App() {
           <p className="text-xs text-[#8B5A2B] font-bold text-center mb-6">
             የአስተዳደር ክፍል መግቢያ በር
           </p>
+
           {authError && (
             <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl flex items-center gap-2 animate-fade-in">
               <AlertCircle size={16} />
@@ -914,6 +933,7 @@ export default function App() {
       </div>
     );
   };
+
   const renderAiModal = () => {
     if (!isAiOpen) return null;
     return (
@@ -955,6 +975,7 @@ export default function App() {
     const currentStatus = getPaymentStatus(updatedStudentObj, selectedYear, selectedMonth);
     const isScholarship = currentStatus === 'SCHOLARSHIP';
     const pDateProfile = getDueDayForMonth(updatedStudentObj, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth));
+
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
         <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-[#D2B48C] shadow-2xl relative">
@@ -1206,6 +1227,7 @@ export default function App() {
           <div className="h-[2px] bg-gradient-to-r from-transparent via-[#8B5A2B] to-transparent flex-1 mx-2" />
           <span className="text-xs text-[#8B5A2B]"> ✥ ✥ ✥ </span>
         </div>
+
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('active'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden group hover:border-[#8B5A2B] transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><BookOpen size={64}/></div><BookOpen size={24} className="mb-2 text-[#8B5A2B]" /><span className="text-3xl font-black font-serif">{totalActive}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> በመማር ላይ ያሉ </span></div>
           <div onClick={() => { setActiveTab('academic'); setAcademicViewType('completed'); }} className="cursor-pointer bg-white rounded-3xl p-4 text-[#3E2723] shadow-md border-2 border-[#EADDCA] flex flex-col items-center justify-center relative overflow-hidden hover:border-green-600 transition-all transform hover:-translate-y-1"><div className="absolute -right-2 -bottom-2 opacity-[0.03]"><Award size={64}/></div><Award size={24} className="mb-2 text-green-700" /><span className="text-3xl font-black font-serif">{completedStudentsCount}</span><span className="text-[10px] font-bold mt-1 text-gray-500"> ያጠናቀቁ (ምሩቃን)</span></div>
@@ -1475,7 +1497,7 @@ export default function App() {
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                {/* ---------- ውጤት መሙያ (በገና፣ ክራር፣ እና ሌሎች) ---------- */}
+                {/* ---------- የውጤት መሙያ (በገና፣ ክራር፣ እና ሌሎች) ---------- */}
                 {student.instrumentType === 'በገና' ? (
                   <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
                     <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የበገና ቅኝት ውጤት መሙያ </span>
@@ -1497,7 +1519,7 @@ export default function App() {
                       <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
                         ድምር: {(Number(kignitScores[student.id]?.selamta) || 0) + (Number(kignitScores[student.id]?.wanen) || 0) + (Number(kignitScores[student.id]?.silechernetih) || 0)}
                       </span>
-                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.selamta) || 0) + (Number(s.wanen) || 0) + (Number(s.silechernetih) || 0); if (total > 0) handleExamScoreSubmit(student.id, total); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.selamta) || 0) + (Number(s.wanen) || 0) + (Number(s.silechernetih) || 0); if (total > 0) handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
                     </div>
                   </div>
                 ) : student.instrumentType === 'ክራር' ? (
@@ -1525,7 +1547,7 @@ export default function App() {
                       <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
                         ድምር: {(Number(kignitScores[student.id]?.tizita) || 0) + (Number(kignitScores[student.id]?.anchihoye) || 0) + (Number(kignitScores[student.id]?.bati_minor) || 0) + (Number(kignitScores[student.id]?.ambasel) || 0)}
                       </span>
-                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.tizita) || 0) + (Number(s.anchihoye) || 0) + (Number(s.bati_minor) || 0) + (Number(s.ambasel) || 0); if (total > 0) handleExamScoreSubmit(student.id, total); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.tizita) || 0) + (Number(s.anchihoye) || 0) + (Number(s.bati_minor) || 0) + (Number(s.ambasel) || 0); if (total > 0) handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
                     </div>
                   </div>
                 ) : (
@@ -1933,7 +1955,8 @@ export default function App() {
                 {reportConfig.type === 'academic' && (
                   <>
                     <th className="border border-gray-300 p-2 text-center"> ሁኔታ </th>
-                    <th className="border border-gray-300 p-2 text-center"> ውጤት </th>
+                    <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>
+                    <th className="border border-gray-300 p-2 text-left"> የቅኝት ዝርዝር </th>
                   </>
                 )}
               </tr>
@@ -1972,6 +1995,18 @@ export default function App() {
                         </td>
                         <td className="border border-gray-300 p-2 text-center font-bold">
                           {s.examResult ? `${s.examResult}%` : '-'}
+                        </td>
+                        <td className="border border-gray-300 p-2 text-left text-[10px] text-gray-700 font-bold">
+                          {(() => {
+                             const ks = s.kignit_scores || kignitScores[s.id] || {};
+                             if (s.instrumentType === 'በገና' && (ks.selamta || ks.wanen || ks.silechernetih)) {
+                                 return `ሰላምታ: ${ks.selamta||0} | ዋኔን: ${ks.wanen||0} | ቸርነትህ: ${ks.silechernetih||0}`;
+                             }
+                             if (s.instrumentType === 'ክራር' && (ks.tizita || ks.anchihoye || ks.bati_minor || ks.ambasel)) {
+                                 return `ትዝታ: ${ks.tizita||0} | አንቺሆዬ: ${ks.anchihoye||0} | ባቲ: ${ks.bati_minor||0} | አምባሰል: ${ks.ambasel||0}`;
+                             }
+                             return '-';
+                          })()}
                         </td>
                       </>
                     )}
