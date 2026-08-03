@@ -441,11 +441,16 @@ export default function App() {
   const updateStudentInDb = async (studentId, updatedFields) => {
     try {
       const { error } = await supabase.from('students').update(updatedFields).eq('id', studentId);
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Error:", error);
+        showNotification(`የዳታቤዝ ስህተት: ${error.message}`, 'error');
+        return false;
+      }
       await fetchStudents();
       return true;
     } catch (err) {
-      showNotification('ማስተካከያው አልተሳካም!', 'error');
+      console.error(err);
+      showNotification('ማስተካከያው አልተሳካም! ዳታቤዝ ላይ kignit_scores ኮለም መኖሩን ያረጋግጡ።', 'error');
       return false;
     }
   };
@@ -459,7 +464,7 @@ export default function App() {
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 5000);
   };
 
   const generateNextStudentNo = () => {
@@ -674,7 +679,7 @@ export default function App() {
   const handleExamScoreSubmit = (studentId, score, kignitData = null) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
-    triggerConfirmation(`የተማሪ "${student.name}" የፈተና ውጤት ወደ ${score}% እንዲቀየር ይፈልጋሉ?`, 'የፈተና ውጤት ማረጋገጫ', async () => {
+    triggerConfirmation(`የተማሪ "${student.name}" የፈተና ውጤት መዝገብ ዳታቤዝ ላይ እንዲቀመጥ ይፈልጋሉ?`, 'የፈተና ውጤት ማረጋገጫ', async () => {
         const payload = { exam_result: score };
         if (kignitData) payload.kignit_scores = kignitData;
         const success = await updateStudentInDb(studentId, payload);
@@ -1519,7 +1524,7 @@ export default function App() {
                       <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
                         ድምር: {(Number(kignitScores[student.id]?.selamta) || 0) + (Number(kignitScores[student.id]?.wanen) || 0) + (Number(kignitScores[student.id]?.silechernetih) || 0)}
                       </span>
-                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.selamta) || 0) + (Number(s.wanen) || 0) + (Number(s.silechernetih) || 0); if (total > 0) handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.selamta) || 0) + (Number(s.wanen) || 0) + (Number(s.silechernetih) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
                     </div>
                   </div>
                 ) : student.instrumentType === 'ክራር' ? (
@@ -1547,7 +1552,7 @@ export default function App() {
                       <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
                         ድምር: {(Number(kignitScores[student.id]?.tizita) || 0) + (Number(kignitScores[student.id]?.anchihoye) || 0) + (Number(kignitScores[student.id]?.bati_minor) || 0) + (Number(kignitScores[student.id]?.ambasel) || 0)}
                       </span>
-                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.tizita) || 0) + (Number(s.anchihoye) || 0) + (Number(s.bati_minor) || 0) + (Number(s.ambasel) || 0); if (total > 0) handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                      <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s.tizita) || 0) + (Number(s.anchihoye) || 0) + (Number(s.bati_minor) || 0) + (Number(s.ambasel) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"><Check size={14} className="inline mr-1"/> መዝግብ</button>
                     </div>
                   </div>
                 ) : (
@@ -1945,18 +1950,20 @@ export default function App() {
               <tr className="bg-gray-100 text-gray-700">
                 <th className="border border-gray-300 p-2"> መ.ቁ </th>
                 <th className="border border-gray-300 p-2"> ሙሉ ስም </th>
-                <th className="border border-gray-300 p-2"> ስልክ </th>
-                <th className="border border-gray-300 p-2"> የተመዘገቡበት ቀን </th>
                 <th className="border border-gray-300 p-2"> መሳሪያ </th>
                 {reportConfig.type !== 'academic' && <>
                   {(reportConfig.type === 'general' || reportConfig.type === 'payment') && <th className="border border-gray-300 p-2"> የ {selectedMonth} ክፍያ </th>}
-                  {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት)</th>}
+                  {(reportConfig.type === 'general' || reportConfig.type === 'attendance') && <th className="border border-gray-300 p-2 text-center"> መገኘት </th>}
                 </>}
                 {reportConfig.type === 'academic' && (
                   <>
+                    {/* ወደ ጎን የተደረደሩ የቅኝት ርዕሶች */}
+                    <th className="border border-gray-300 p-2 text-center text-[10px]">ሰላምታ / ትዝታ</th>
+                    <th className="border border-gray-300 p-2 text-center text-[10px]">ዋኔን / አንቺሆዬ</th>
+                    <th className="border border-gray-300 p-2 text-center text-[10px]">ቸርነትህ / ባቲ</th>
+                    <th className="border border-gray-300 p-2 text-center text-[10px]">- / አምባሰል</th>
+                    <th className="border border-gray-300 p-2 text-center text-[11px] font-black text-[#8B5A2B]">ድምር</th>
                     <th className="border border-gray-300 p-2 text-center"> ሁኔታ </th>
-                    <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>
-                    <th className="border border-gray-300 p-2 text-left"> የቅኝት ዝርዝር </th>
                   </>
                 )}
               </tr>
@@ -1971,9 +1978,7 @@ export default function App() {
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
                     <td className="border border-gray-300 p-2 font-bold">{s.name}</td>
-                    <td className="border border-gray-300 p-2">{s.phone}</td>
-                    <td className="border border-gray-300 p-2 font-mono text-[11px]">{formatEthDate(s.registrationDate)}</td>
-                    <td className="border border-gray-300 p-2">{s.instrumentType || '-'}</td>
+                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{s.instrumentType || '-'}</td>
                     {reportConfig.type !== 'academic' && <>
                       {(reportConfig.type === 'general' || reportConfig.type === 'payment') && (
                         <td className="border border-gray-300 p-2 font-black">
@@ -1990,23 +1995,41 @@ export default function App() {
                     </>}
                     {reportConfig.type === 'academic' && (
                       <>
-                        <td className="border border-gray-300 p-2 text-center font-bold">
-                          {s.status === 'completed' ? <span className="text-green-700"> ያጠናቀቀ </span> : s.status === 'dropped' ? <span className="text-red-700"> ያቋረጠ </span> : <span className="text-blue-700"> በመማር ላይ </span>}
-                        </td>
-                        <td className="border border-gray-300 p-2 text-center font-bold">
-                          {s.examResult ? `${s.examResult}%` : '-'}
-                        </td>
-                        <td className="border border-gray-300 p-2 text-left text-[10px] text-gray-700 font-bold">
-                          {(() => {
-                             const ks = s.kignit_scores || kignitScores[s.id] || {};
-                             if (s.instrumentType === 'በገና' && (ks.selamta || ks.wanen || ks.silechernetih)) {
-                                 return `ሰላምታ: ${ks.selamta||0} | ዋኔን: ${ks.wanen||0} | ቸርነትህ: ${ks.silechernetih||0}`;
-                             }
-                             if (s.instrumentType === 'ክራር' && (ks.tizita || ks.anchihoye || ks.bati_minor || ks.ambasel)) {
-                                 return `ትዝታ: ${ks.tizita||0} | አንቺሆዬ: ${ks.anchihoye||0} | ባቲ: ${ks.bati_minor||0} | አምባሰል: ${ks.ambasel||0}`;
-                             }
-                             return '-';
-                          })()}
+                        {/* ወደ ጎን የተደረደሩ የቅኝት ውጤቶች መረጃ */}
+                        {(() => {
+                            const ks = s.kignit_scores || kignitScores[s.id] || {};
+                            if (s.instrumentType === 'በገና') {
+                                return (
+                                    <>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.selamta || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.wanen || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.silechernetih || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px] bg-gray-100">-</td>
+                                    </>
+                                );
+                            } else if (s.instrumentType === 'ክራር') {
+                                return (
+                                    <>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.tizita || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.anchihoye || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.bati_minor || '-'}</td>
+                                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">{ks.ambasel || '-'}</td>
+                                    </>
+                                );
+                            } else {
+                                return (
+                                    <>
+                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                        <td className="border border-gray-300 p-2 text-center text-gray-400">-</td>
+                                    </>
+                                );
+                            }
+                        })()}
+                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? s.examResult : '-'}</td>
+                        <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">
+                          {s.status === 'completed' ? <span className="text-green-700">ያጠናቀቀ</span> : s.status === 'dropped' ? <span className="text-red-700">ያቋረጠ</span> : <span className="text-blue-700">በመማር ላይ</span>}
                         </td>
                       </>
                     )}
