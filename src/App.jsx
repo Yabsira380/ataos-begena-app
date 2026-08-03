@@ -212,6 +212,48 @@ const compressImage = (file) => {
   });
 };
 
+// --- የተሻሻለ እና ማራኪ የመጫኛ ገጽ (Splash Loading Component) ---
+const LoadingSplash = ({ message }) => (
+  <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    {/* ከበስተጀርባ የሚታየው ባህላዊ Watermark */}
+    <WatermarkBackground />
+
+    {/* ያማረ የሎጎ አኒሜሽን (Glowing Icon) */}
+    <div className="relative flex items-center justify-center mb-6 z-10">
+      <div className="absolute w-28 h-28 bg-[#D4AF37]/25 rounded-full animate-ping" />
+      <div className="w-24 h-24 bg-gradient-to-br from-[#5C4033] via-[#8B5A2B] to-[#3E2723] rounded-3xl flex items-center justify-center text-[#D4AF37] shadow-2xl border-2 border-[#D4AF37] relative z-10 animate-pulse">
+        <EthiopianCross className="w-14 h-14" />
+      </div>
+    </div>
+
+    {/* የመተግበሪያው ስም እና የሎዲንግ መልእክት */}
+    <div className="text-center z-10 mb-6">
+      <h2 className="text-2xl font-black text-[#3E2723] font-serif mb-1 tracking-wide">
+        አታኦስ በገና ማሰልጠኛ
+      </h2>
+      <p className="text-xs text-[#8B5A2B] font-bold animate-pulse flex items-center justify-center gap-2">
+        <Loader2 className="animate-spin text-[#8B5A2B]" size={14} />
+        <span>{message}</span>
+      </p>
+    </div>
+
+    {/* ወርቃማ የፕሮግረስ ባር (Progress Line) */}
+    <div className="w-52 h-1.5 bg-[#EADDCA] rounded-full overflow-hidden mb-8 shadow-inner z-10 border border-[#D2B48C]/40">
+      <div className="h-full bg-gradient-to-r from-[#8B5A2B] via-[#D4AF37] to-[#8B5A2B] w-full animate-pulse" />
+    </div>
+
+    {/* በመጠባበቅ ላይ ሳለ የሚታይ የመዝሙር ጥቅስ */}
+    <div className="bg-[#FAF3E0]/80 backdrop-blur-sm p-4 rounded-2xl border border-[#D2B48C] max-w-xs text-center shadow-sm z-10">
+      <p className="text-[11px] text-[#5C4033] italic font-serif leading-relaxed">
+        «በበገናም አመስግኑት፤ አሥር አሦር ባለው በበገና ዘምሩለት»
+      </p>
+      <span className="block text-[9px] font-extrabold text-[#8B5A2B] mt-1">
+        — መዝሙረ ዳዊት 33:2
+      </span>
+    </div>
+  </div>
+);
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1915,12 +1957,7 @@ export default function App() {
   };
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
-        <Loader2 className="animate-spin mb-4 text-[#8B5A2B]" size={40} />
-        <p className="text-xs font-bold text-[#8B5A2B]">የደህንነት ማረጋገጫ በመካሄድ ላይ ነው...</p>
-      </div>
-    );
+    return <LoadingSplash message="የደህንነት ማረጋገጫ በመካሄድ ላይ ነው..." />;
   }
 
   if (!session) {
@@ -1928,12 +1965,7 @@ export default function App() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#FAF6EE] flex flex-col items-center justify-center p-4">
-        <Loader2 className="animate-spin mb-4 text-[#8B5A2B]" size={40} />
-        <p className="text-xs font-bold text-[#8B5A2B]">የተማሪዎች መረጃ ከኦንላይን ዳታቤዝ በመጫን ላይ ነው...</p>
-      </div>
-    );
+    return <LoadingSplash message="የተማሪዎች መረጃ ከዳታቤዝ በመጫን ላይ ነው..." />;
   }
 
   return (
