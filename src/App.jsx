@@ -385,7 +385,7 @@ export default function App() {
         payments: s.payments || {},
         attendance: s.attendance || {},
         lesson_progress: s.lesson_progress || {},
-        kignit_scores: s.kignit_scores || {}
+        kignit_scores: s.kignit_scores || {} 
       }));
       setStudents(mappedData);
 
@@ -1954,6 +1954,7 @@ export default function App() {
                    </>
                 )}
                 <th className="border border-gray-300 p-2"> መሳሪያ </th>
+                <th className="border border-gray-300 p-2"> የጊዜ ቆይታ </th>
                 {reportConfig.type === 'general' && <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>}
                 {reportConfig.type === 'payment' && <th className="border border-gray-300 p-2 text-center"> የ {selectedMonth} ክፍያ </th>}
                 {reportConfig.type === 'attendance' && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት) </th>}
@@ -1986,6 +1987,7 @@ export default function App() {
                        </>
                     )}
                     <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{s.instrumentType || '-'}</td>
+                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B]">{s.duration || '-'}</td>
                     
                     {reportConfig.type === 'general' && (
                         <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? `${s.examResult}%` : '-'}</td>
@@ -2049,7 +2051,7 @@ export default function App() {
               })}
               {displayedStudentsForReport.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="border border-gray-300 p-6 text-center text-gray-400 italic">የተመረጠውን ማጣሪያ የሚያሟላ የተማሪ መረጃ አልተገኘም።</td>
+                  <td colSpan="9" className="border border-gray-300 p-6 text-center text-gray-400 italic">የተመረጠውን ማጣሪያ የሚያሟላ የተማሪ መረጃ አልተገኘም።</td>
                 </tr>
               )}
             </tbody>
