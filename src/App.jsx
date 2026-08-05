@@ -82,10 +82,17 @@ const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) 
   return selMonthIndex >= regMonthIndex;
 };
 
-// ---------------- ማዕከላዊ የክፍያ ማሽን ----------------
+// --- የመሳሪያ ስሞችን ወደ አሬይ (Array) የሚቀይር አጋዥ ፈንክሽን ---
+const parseInstruments = (instData) => {
+  if (!instData) return ['በገና'];
+  if (Array.isArray(instData)) return instData.length > 0 ? instData : ['በገና'];
+  return String(instData).split(',').map(s => s.trim()).filter(Boolean);
+};
+
+// ---------------- ማዕከላዊ የክፍያ ማሽን (ለየመሳሪያው የተሻሻለ) ----------------
 const todayEthGlobal = getEthiopianDate();
 
-const getDueDayForMonth = (student, cY, cMIdx) => {
+const getDueDayForMonth = (student, cY, cMIdx, inst) => {
     let regYear = 0;
     let regMonthIdx = 0;
     let regDay = 1;
@@ -100,15 +107,16 @@ const getDueDayForMonth = (student, cY, cMIdx) => {
     if (cY === regYear && cMIdx === regMonthIdx) {
         return regDay;
     } else {
-        if (student.paymentDate && student.paymentDate !== '') {
-            return parseInt(student.paymentDate, 10);
+        const instDate = student.paymentDetails?.[inst]?.date;
+        if (instDate && instDate !== '') {
+            return parseInt(instDate, 10);
         } else {
             return regDay < 30 ? regDay + 1 : 1;
         }
     }
 };
 
-const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
+const getPaymentStatus = (student, targetYearStr, targetMonthStr, inst) => {
     const tY = parseInt(todayEthGlobal.year, 10);
     const tMIdx = ethiopianMonths.indexOf(todayEthGlobal.month);
     const tDay = parseInt(todayEthGlobal.day, 10);
@@ -120,15 +128,18 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
         return 'NOT_ELIGIBLE';
     }
 
-    const key = `${targetYearStr}_${targetMonthStr}`;
-    if (student.payments && student.payments[key]) {
+    const key = `${targetYearStr}_${targetMonthStr}_${inst}`;
+    const legacyKey = `${targetYearStr}_${targetMonthStr}`; // ለድሮ የተመዘገቡ መረጃዎች እንዳይበላሹ
+    
+    if (student.payments && (student.payments[key] || student.payments[legacyKey])) {
         return 'PAID';
     }
-    if (Number(student.paymentAmount || 0) === 0) {
+    
+    if (student.paymentDetails?.[inst]?.isFree || (Number(student.paymentAmount || 0) === 0 && !student.paymentDetails?.[inst])) {
         return 'SCHOLARSHIP';
     }
 
-    const dueDay = getDueDayForMonth(student, cY, cMIdx);
+    const dueDay = getDueDayForMonth(student, cY, cMIdx, inst);
 
     if (cY > tY || (cY === tY && cMIdx > tMIdx)) {
         return 'FUTURE_NOT_DUE';
@@ -145,14 +156,6 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
     return 'UNPAID';
 };
 
-// --- የመሳሪያ ስሞችን ወደ አሬይ (Array) የሚቀይር አጋዥ ፈንክሽን ---
-const parseInstruments = (instData) => {
-  if (!instData) return ['በገና'];
-  if (Array.isArray(instData)) return instData.length > 0 ? instData : ['በገና'];
-  return String(instData).split(',').map(s => s.trim()).filter(Boolean);
-};
-
-// --- አዲስ፦ የክፍያ ድምር እና ቀደምት መክፈያ ቀን ማስሊያ ፈንክሽኖች ---
 const calculateTotalAmount = (details) => {
   if (!details) return 0;
   return Object.values(details).reduce((sum, item) => sum + (item.isFree ? 0 : Number(item.amount || 0)), 0);
@@ -302,6 +305,7 @@ export default function App() {
   
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState(null);
+  const [historyInstTab, setHistoryInstTab] = useState(null);
 
   const [editStudentNoState, setEditStudentNoState] = useState({ isEditing: false, value: '' });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -328,26 +332,35 @@ export default function App() {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', 
     instrumentType: ['በገና'], 
-    paymentDetails: { 'በገና': { amount: '', date: '', isFree: false } }, // አዲስ፦ የእያንዳንዱ መሳሪያ ክፍያ መያዣ
+    paymentDetails: { 'በገና': { amount: '', date: '', isFree: false } },
     duration: '3 ወር', chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
 
   const getUnpaidMonthsInfo = (student) => {
-    if (Number(student.paymentAmount || 0) <= 0) return { unpaidKeys: [], totalArrears: 0 };
+    const unpaidDetails = [];
+    let totalArrears = 0;
+    const insts = parseInstruments(student.instrumentType);
     
-    const unpaidKeys = [];
-    for (const y of ethiopianYears) {
-      for (const m of ethiopianMonths) {
-        const key = `${y}_${m}`;
-        const status = getPaymentStatus(student, y, m);
-        if (status === 'UNPAID') {
-            unpaidKeys.push(key);
+    for (const inst of insts) {
+        if (student.paymentDetails?.[inst]?.isFree) continue;
+        const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
+        if (amt <= 0) continue;
+
+        let instUnpaidCount = 0;
+        for (const y of ethiopianYears) {
+            for (const m of ethiopianMonths) {
+                const status = getPaymentStatus(student, y, m, inst);
+                if (status === 'UNPAID') {
+                    unpaidDetails.push(`${y}_${m}_${inst}`);
+                    instUnpaidCount++;
+                }
+            }
         }
-      }
+        totalArrears += (instUnpaidCount * amt);
     }
-    return { unpaidKeys, totalArrears: unpaidKeys.length * Number(student.paymentAmount || 0) };
+    return { unpaidKeys: unpaidDetails, totalArrears };
   };
 
   useEffect(() => {
@@ -398,7 +411,7 @@ export default function App() {
         chosenTime: s.chosen_time,
         paymentAmount: s.payment_amount,
         paymentDate: s.payment_date,
-        paymentDetails: s.payment_details || {}, // አዲስ፦ የክፍያ ዝርዝር ከዳታቤዝ
+        paymentDetails: s.payment_details || {},
         photo: s.photo,
         status: s.status,
         examResult: s.exam_result,
@@ -495,7 +508,6 @@ export default function App() {
   const startEditingProfile = (student) => {
     const insts = parseInstruments(student.instrumentType);
     const pDetails = student.paymentDetails || {};
-    // ሁሉም የተመረጡ መሳሪያዎች የየራሳቸው የክፍያ ቦክስ እንዲኖራቸው ማረጋገጥ
     insts.forEach(i => {
        if (!pDetails[i]) pDetails[i] = { amount: '', date: '', isFree: false };
     });
@@ -673,13 +685,14 @@ export default function App() {
     });
   };
 
-  const handleTogglePaymentWithConfirm = (student, periodKey) => {
-    const isPaid = student.payments[periodKey] || false;
+  const handleTogglePaymentWithConfirm = (student, basePeriodKey, inst) => {
+    const key = `${basePeriodKey}_${inst}`;
+    const isPaid = student.payments?.[key] || false;
     const actionText = isPaid ? 'አልከፈለም' : 'ከፍሏል';
-    const updatedPayments = { ...student.payments, [periodKey]: !isPaid };
-    triggerConfirmation(`የተማሪ "${student.name}" የክፍያ ሁኔታ ወደ "${actionText}" እንዲቀየር ይፈልጋሉ?`, 'የክፍያ ማረጋገጫ ሰነድ', async () => {
+    const updatedPayments = { ...student.payments, [key]: !isPaid };
+    triggerConfirmation(`የተማሪ "${student.name}" የ ${inst} ክፍያ ሁኔታ ወደ "${actionText}" እንዲቀየር ይፈልጋሉ?`, 'የክፍያ ማረጋገጫ ሰነድ', async () => {
         const success = await updateStudentInDb(student.id, { payments: updatedPayments });
-        if (success) { showNotification(`የክፍያ ሁኔታ ተስተካክሏል።`, 'success'); }
+        if (success) { showNotification(`የ ${inst} ክፍያ ሁኔታ ተስተካክሏል።`, 'success'); }
     });
   };
 
@@ -766,31 +779,36 @@ export default function App() {
 
   // --- COMPUTATIONS ---
   const activeStudents = students.filter(s => s.status === 'active');
-  const eligiblePaymentStudents = activeStudents.filter(s => {
-      const status = getPaymentStatus(s, selectedYear, selectedMonth);
-      return status !== 'NOT_ELIGIBLE';
-  });
-
-  const completedStudentsCount = students.filter(s => s.status === 'completed').length;
-  const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
-  const totalActive = activeStudents.length;
-  const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
   
-  const totalPaidCurrentMonth = eligiblePaymentStudents.filter(s => {
-      const status = getPaymentStatus(s, selectedYear, selectedMonth);
-      return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
+  const totalPaidCurrentMonth = activeStudents.filter(s => {
+      const insts = parseInstruments(s.instrumentType);
+      return insts.every(inst => {
+          const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+          return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
+      });
   }).length;
   
-  const totalUnpaidCurrentMonth = eligiblePaymentStudents.filter(s => {
-      const status = getPaymentStatus(s, selectedYear, selectedMonth);
-      return status === 'UNPAID';
+  const totalUnpaidCurrentMonth = activeStudents.filter(s => {
+      const insts = parseInstruments(s.instrumentType);
+      return insts.some(inst => {
+          const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+          return status === 'UNPAID';
+      });
   }).length;
   
-  const totalRevenueExpected = eligiblePaymentStudents.reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
-  const totalRevenueCollected = eligiblePaymentStudents.filter(s => {
-      const status = getPaymentStatus(s, selectedYear, selectedMonth);
-      return status === 'PAID';
-  }).reduce((sum, s) => sum + Number(s.paymentAmount || 0), 0);
+  const totalRevenueExpected = activeStudents.reduce((sum, s) => {
+      const insts = parseInstruments(s.instrumentType);
+      return sum + insts.reduce((instSum, inst) => instSum + (s.paymentDetails?.[inst]?.isFree ? 0 : Number(s.paymentDetails?.[inst]?.amount || s.paymentAmount || 0)), 0);
+  }, 0);
+  
+  const totalRevenueCollected = activeStudents.reduce((sum, s) => {
+      const insts = parseInstruments(s.instrumentType);
+      return sum + insts.reduce((instSum, inst) => {
+          const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+          if (status === 'PAID') return instSum + Number(s.paymentDetails?.[inst]?.amount || s.paymentAmount || 0);
+          return instSum;
+      }, 0);
+  }, 0);
   
   const overdueList = activeStudents.map(student => {
     const info = getUnpaidMonthsInfo(student);
@@ -799,11 +817,18 @@ export default function App() {
   }).filter(Boolean);
   const overdueUnpaidCount = overdueList.length;
 
+  const completedStudentsCount = students.filter(s => s.status === 'completed').length;
+  const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
+  const totalActive = activeStudents.length;
+  const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
+
   // --- Views Renders ---
   
   const renderPaymentHistoryModal = () => {
     if (!selectedStudentForHistory) return null;
     const student = students.find(s => s.id === selectedStudentForHistory.id) || selectedStudentForHistory;
+    const insts = parseInstruments(student.instrumentType);
+    const activeInst = historyInstTab && insts.includes(historyInstTab) ? historyInstTab : insts[0];
     
     const historyList = [];
     const tYInt = parseInt(todayEthGlobal.year, 10);
@@ -816,10 +841,9 @@ export default function App() {
           const mIdx = ethiopianMonths.indexOf(m);
           
           if (yInt < tYInt || (yInt === tYInt && mIdx <= tMIdx + 1)) {
-             const key = `${y}_${m}`;
-             const status = getPaymentStatus(student, y, m);
-             const exactDueDay = getDueDayForMonth(student, yInt, mIdx);
-             historyList.push({ year: y, month: m, key, status, exactDueDay });
+             const status = getPaymentStatus(student, y, m, activeInst);
+             const exactDueDay = getDueDayForMonth(student, yInt, mIdx, activeInst);
+             historyList.push({ year: y, month: m, key: `${y}_${m}`, status, exactDueDay });
           }
         }
       }
@@ -834,35 +858,42 @@ export default function App() {
             <div className="flex items-center gap-2">
               <div className="bg-[#D4AF37] p-1.5 rounded-lg"><History size={18} className="text-[#3E2723]" /></div>
               <div>
-                <h3 className="font-extrabold text-sm font-serif text-[#FFF8E7]">የክፍያ ታሪክ ማስተካከያ (History & Edit)</h3>
+                <h3 className="font-extrabold text-sm font-serif text-[#FFF8E7]">የክፍያ ታሪክ ማስተካከያ</h3>
                 <p className="text-[10px] text-gray-300 font-bold">{student.name} (#{student.studentNo})</p>
               </div>
             </div>
-            <button onClick={() => setSelectedStudentForHistory(null)} className="p-2 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={18} /></button>
+            <button onClick={() => { setSelectedStudentForHistory(null); setHistoryInstTab(null); }} className="p-2 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={18} /></button>
+          </div>
+
+          <div className="bg-white border-b border-[#EADDCA] p-2 flex gap-2 overflow-x-auto hide-scrollbar flex-shrink-0">
+             {insts.map(inst => (
+                <button key={inst} onClick={() => setHistoryInstTab(inst)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${activeInst === inst ? 'bg-[#8B5A2B] text-white shadow-sm' : 'bg-gray-100 text-[#5C4033] hover:bg-gray-200'}`}>
+                   የ {inst} ታሪክ
+                </button>
+             ))}
           </div>
 
           <div className="p-4 bg-amber-50/50 border-b border-[#EADDCA] flex-shrink-0">
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
-                <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የተመዘገቡበት ቀን፦</span>
-                <span className="font-black text-[#3E2723]">{formatEthDate(student.registrationDate)}</span>
-              </div>
-              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
                 <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
-                <span className="font-black text-[#8B5A2B]">
-                  {student.paymentDate && student.paymentDate !== '' ? `በየወሩ ${student.paymentDate} ቀን` : `(የመጀመሪያ ቀን ስሌት)`}
-                </span>
+                <span className="font-black text-[#8B5A2B]">{student.paymentDetails?.[activeInst]?.date ? `በየወሩ ${student.paymentDetails[activeInst].date} ቀን` : `(ያልተሞላ)`}</span>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
-                <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ ድምር መጠን፦</span>
-                <span className="font-black text-[#3E2723] text-sm">{student.paymentAmount > 0 ? `${student.paymentAmount} ብር` : 'ነፃ ተማሪ'}</span>
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm flex justify-between items-center">
+                <div>
+                   <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የ {activeInst} መጠን፦</span>
+                   <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || 0} ብር`}</span>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {historyList.map((item) => {
-              const isPaid = student.payments?.[item.key] || false;
+              const fullKey = `${item.key}_${activeInst}`;
+              const legacyKey = item.key;
+              const isPaid = student.payments?.[fullKey] || student.payments?.[legacyKey] || false;
+              
               return (
                 <div key={item.key} className="bg-white rounded-2xl p-3 border-2 border-[#EADDCA] shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -882,11 +913,10 @@ export default function App() {
                        <span className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-[10px] font-black">ነፃ</span>
                      ) : (
                        <button 
-                         onClick={() => handleTogglePaymentWithConfirm(student, item.key)}
+                         onClick={() => handleTogglePaymentWithConfirm(student, item.key, activeInst)}
                          className={`px-3 py-2 rounded-xl text-[10px] font-black transition-all shadow-sm flex items-center gap-1 ${isPaid ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200' : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'}`}
-                         title="የክፍያ ሁኔታ ለመቀየር እዚህ ይንኩ"
                        >
-                         {isPaid ? <><CheckCircle size={12}/> ከፍሏል (ቀይር)</> : <><XCircle size={12}/> አልከፈለም (ቀይር)</>}
+                         {isPaid ? <><CheckCircle size={12}/> ከፍሏል</> : <><XCircle size={12}/> አልከፈለም</>}
                        </button>
                      )}
                   </div>
@@ -998,12 +1028,7 @@ export default function App() {
     
     // የተማሪውን መሳሪያዎች ለይቶ ማውጣት
     const studentInstruments = parseInstruments(updatedStudentObj.instrumentType);
-    const studentLessons = lessons.filter(l => studentInstruments.includes(l.instrument)).sort((a, b) => a.id - b.id);
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
-
-    const currentStatus = getPaymentStatus(updatedStudentObj, selectedYear, selectedMonth);
-    const isScholarship = currentStatus === 'SCHOLARSHIP';
-    const pDateProfile = getDueDayForMonth(updatedStudentObj, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth));
 
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in">
@@ -1061,7 +1086,6 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">አገልግሎት ክፍል</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/></div>
                 </div>
                 
-                {/* ማስተካከያ፦ ከአንድ በላይ የዜማ መሳሪያ መምረጫ checkboxes */}
                 <div>
                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)</label>
                   <div className="flex flex-wrap gap-2 border border-[#D2B48C] p-2 rounded-lg bg-white">
@@ -1226,7 +1250,6 @@ export default function App() {
                     <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
                   </div>
                   
-                  {/* አዲስ፦ የእያንዳንዱን መሳሪያ ክፍያ የሚያሳይ */}
                   <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA]">
                     <p className="text-[10px] text-gray-500 mb-1.5 font-bold flex items-center"><Banknote size={12} className="mr-1"/> የክፍያ ዝርዝር መረጃ፡</p>
                     <div className="space-y-1.5">
@@ -1238,7 +1261,7 @@ export default function App() {
                                 {detail.isFree ? (
                                    <span className="text-blue-600 font-black bg-blue-100 px-1 rounded">ነፃ</span>
                                 ) : (
-                                   <span className="text-[#8B5A2B] font-bold">{detail.amount || 0} ብር (ቀን {detail.date || '-'})</span>
+                                   <span className="text-[#8B5A2B] font-bold">{detail.amount || updatedStudentObj.paymentAmount || 0} ብር (ቀን {detail.date || '-'})</span>
                                 )}
                              </div>
                           )
@@ -1246,54 +1269,43 @@ export default function App() {
                     </div>
                   </div>
 
-                  {updatedStudentObj.status === 'active' && (
-                    <>
-                      {isScholarship ? (
-                        <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-blue-50 p-2 rounded">
-                          <span className="font-bold text-blue-900"> የ {selectedMonth} ጠቅላላ ሁኔታ፦ </span> 
-                          <span className="text-blue-700 font-black bg-blue-200 px-3 py-1 rounded"> ነፃ (Scholarship) </span>
-                        </div>
-                      ) : (
-                        <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
-                          <span className="font-bold text-gray-600"> የ {selectedMonth} ጠቅላላ ድምር ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
-                          {currentStatus === 'PAID' ? (
-                            <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
-                          ) : (currentStatus === 'CURRENT_NOT_DUE' || currentStatus === 'FUTURE_NOT_DUE') ? (
-                            <span className="text-gray-600 font-black bg-gray-200 px-2 py-1 rounded"> ገና አልደረሰም (ቀን {pDateProfile}) </span>
-                          ) : (
-                            <span className="text-red-700 font-black bg-red-100 px-2 py-1 rounded"> አልከፈለም ✗ </span>
-                          )}
-                        </div>
-                      )}
-                      
-                      {studentArrearsInfo.totalArrears > 0 && (
-                        <div className="col-span-2 mt-2 pt-2 border-t border-red-200 flex justify-between items-center bg-red-50 p-2 rounded shadow-inner">
-                          <span className="font-black text-red-800 flex items-center gap-1"><AlertCircle size={14}/> ያለበት አጠቃላይ ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
-                          <span className="text-red-700 font-black bg-red-200 px-2 py-1 rounded shadow-sm"> {studentArrearsInfo.totalArrears} ብር </span>
-                        </div>
-                      )}
-                    </>
+                  {updatedStudentObj.status === 'active' && studentArrearsInfo.totalArrears > 0 && (
+                     <div className="col-span-2 mt-2 pt-2 border-t border-red-200 flex justify-between items-center bg-red-50 p-2 rounded shadow-inner">
+                       <span className="font-black text-red-800 flex items-center gap-1"><AlertCircle size={14}/> ያለበት አጠቃላይ ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
+                       <span className="text-red-700 font-black bg-red-200 px-2 py-1 rounded shadow-sm"> {studentArrearsInfo.totalArrears} ብር </span>
+                     </div>
                   )}
                 </div>
               </div>
 
+              {/* 3. የተሻሻለ፦ የትምህርት ደረጃ ክትትልን (Lesson Plan) በየመሳሪያው ለይቶ ያሳያል */}
               <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm mb-4">
                 <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><ListMusic size={14} className="mr-1"/> የትምህርት ደረጃ ክትትል (Progress)</h4>
-                {studentLessons.length > 0 ? (
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {studentLessons.map((lesson, idx) => {
-                      const isCompleted = updatedStudentObj.lesson_progress?.[lesson.id];
-                      return (
-                        <div key={lesson.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
-                          <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={12}/>}</button>
-                          <div><p className={`text-[11px] font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title} ({lesson.instrument})</p><p className={`text-[9px] mt-0.5 ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p></div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-gray-100"><p className="text-[10px] font-bold">ለተመዘገቡት የመሳሪያ አይነቶች የተመዘገበ የትምህርት ቅደም ተከተል የለም።</p></div>
-                )}
+                <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
+                   {studentInstruments.map(inst => {
+                       const instLessons = lessons.filter(l => l.instrument === inst).sort((a, b) => a.id - b.id);
+                       if (instLessons.length === 0) return null;
+                       return (
+                          <div key={inst} className="mb-2">
+                             <h5 className="text-[10px] font-black text-[#8B5A2B] bg-[#FAF3E0] px-2 py-1 rounded inline-block mb-2 border border-[#D2B48C]">የ {inst} ትምህርቶች</h5>
+                             <div className="space-y-2">
+                                 {instLessons.map((lesson, idx) => {
+                                    const isCompleted = updatedStudentObj.lesson_progress?.[lesson.id];
+                                    return (
+                                      <div key={lesson.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
+                                        <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={12}/>}</button>
+                                        <div><p className={`text-[11px] font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title}</p><p className={`text-[9px] mt-0.5 ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p></div>
+                                      </div>
+                                    )
+                                 })}
+                             </div>
+                          </div>
+                       )
+                   })}
+                   {!lessons.some(l => studentInstruments.includes(l.instrument)) && (
+                      <div className="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-gray-100"><p className="text-[10px] font-bold">ለተመዘገቡት የመሳሪያ አይነቶች የተመዘገበ የትምህርት ቅደም ተከተል የለም።</p></div>
+                   )}
+                </div>
               </div>
             </div>
           )}
@@ -1524,7 +1536,7 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
             </div>
 
-            {/* አዲስ፦ ለእያንዳንዱ መሳሪያ ክፍያ መሙያ */}
+            {/* 1. የክፍያ ቦታ የተሻሻለ፦ ለእያንዳንዱ መሳሪያ ክፍያ መሙያ */}
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
               <p className="text-[11px] font-black text-[#8B5A2B] mb-2">የመሳሪያዎች የክፍያ ዝርዝር፡</p>
               {newStudent.instrumentType.map(inst => (
@@ -1874,13 +1886,19 @@ export default function App() {
 
     if (paymentFilter === 'paid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-          const status = getPaymentStatus(s, selectedYear, selectedMonth);
-          return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
+          const insts = parseInstruments(s.instrumentType);
+          return insts.every(inst => {
+              const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+              return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
+          });
       });
     } else if (paymentFilter === 'unpaid') {
       filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-          const status = getPaymentStatus(s, selectedYear, selectedMonth);
-          return status === 'UNPAID';
+          const insts = parseInstruments(s.instrumentType);
+          return insts.some(inst => {
+              const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+              return status === 'UNPAID';
+          });
       });
     }
 
@@ -1893,8 +1911,8 @@ export default function App() {
 
         <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
           <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({activeStudents.length})</button>
-          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ ({totalPaidCurrentMonth})</button>
-          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ ({totalUnpaidCurrentMonth})</button>
+          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ</button>
+          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
         <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
@@ -1909,52 +1927,59 @@ export default function App() {
         
         <div className="space-y-4">
           {filteredPaymentStudents.map(student => {
-            const amt = Number(student.paymentAmount || 0);
-            const status = getPaymentStatus(student, selectedYear, selectedMonth);
-            const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth));
+            const insts = parseInstruments(student.instrumentType);
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
-                <div className="flex items-center justify-between w-full">
+                <div className="flex items-center justify-between w-full mb-3">
                   
                   <div 
-                    onClick={() => setSelectedStudentForHistory(student)}
+                    onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
                     className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${status === 'SCHOLARSHIP' ? 'bg-blue-50 border-blue-300' : status === 'PAID' ? 'bg-[#E8F5E9] border-green-400' : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE' ? 'bg-gray-100 border-gray-300' : 'bg-[#FFEBEE] border-red-300')}`}>
-                      <CreditCard size={20} className={status === 'SCHOLARSHIP' ? 'text-blue-500' : status === 'PAID' ? 'text-[#2E7D32]' : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE' ? 'text-gray-500' : 'text-[#C62828]')} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 bg-gray-100 border-gray-300`}>
+                      <CreditCard size={20} className="text-gray-600" />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
                         {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                        {parseInstruments(student.instrumentType).join('፣ ')} | {status === 'SCHOLARSHIP' ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
-                        {status !== 'SCHOLARSHIP' ? ` (ቀን ${pDate})` : ''}
+                        {insts.join('፣ ')}
                       </p>
                     </div>
                   </div>
-                  
-                  {status === 'SCHOLARSHIP' ? (
-                    <span className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-100 text-blue-700 border border-blue-300">
-                      ነፃ ተማሪ
-                    </span>
-                  ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
-                    <button 
-                      onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
-                      className="px-3 py-2 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200"
-                    >
-                      ገና አልደረሰም
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey)} 
-                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400' : 'bg-red-100 text-red-700 border border-red-300'}`}
-                    >
-                      {status === 'PAID' ? 'ከፍሏል' : 'አልከፈለም'}
-                    </button>
-                  )}
+                </div>
+                
+                {/* 1. የተሻሻለ፦ የእያንዳንዱን መሳሪያ ክፍያ መቆጣጠሪያ ለየብቻ ያሳያል */}
+                <div className="space-y-2 border-t border-gray-100 pt-3">
+                  {insts.map(inst => {
+                     const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
+                     const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
+                     const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
+                     
+                     return (
+                        <div key={inst} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl border border-gray-200">
+                           <div>
+                              <span className="font-bold text-xs text-[#3E2723]">{inst} </span>
+                              <span className="text-[10px] text-gray-500">
+                                {status === 'SCHOLARSHIP' ? '(ነፃ)' : `(${amt} ብር | ቀን ${pDate})`}
+                              </span>
+                           </div>
+                           
+                           {status === 'SCHOLARSHIP' ? (
+                             <span className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-700 border border-blue-300">ነፃ ተማሪ</span>
+                           ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 shadow-sm transition-colors">ገና አልደረሰም</button>
+                           ) : (
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[10px] font-bold rounded-lg shadow-sm transition-colors ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400 hover:bg-green-200' : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'}`}>
+                                {status === 'PAID' ? 'ከፍሏል' : 'አልከፈለም'}
+                             </button>
+                           )}
+                        </div>
+                     )
+                  })}
                 </div>
               </div>
             );
@@ -2017,22 +2042,6 @@ export default function App() {
             <p className="mt-1 text-sm text-gray-500"> ዓ.ም: {selectedYear} | ወር: {selectedMonth} | ቀን: {new Date().toLocaleDateString('am-ET')}</p>
           </div>
 
-          {reportConfig.type === 'general' && (
-            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <h3 className="text-base font-black border-b border-gray-300 mb-3 pb-1"> ማጠቃለያ </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><span className="font-bold"> በዚህ ሪፖርት ላይ ያሉ ተማሪዎች ድምር:</span> {displayedStudentsForReport.length} ተማሪ</p>
-                  <p><span className="font-bold"> በመማር ላይ ያሉ ድምር:</span> {displayedStudentsForReport.filter(s => s.status === 'active').length}</p>
-                </div>
-                <div>
-                  <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0 || getPaymentStatus(s, selectedYear, selectedMonth) === 'CURRENT_NOT_DUE' || getPaymentStatus(s, selectedYear, selectedMonth) === 'FUTURE_NOT_DUE')).length}</p>
-                  <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
           <table className="w-full border-collapse border border-gray-300 text-left text-xs sm:text-sm">
             <thead>
               <tr className="bg-gray-100 text-gray-700">
@@ -2060,8 +2069,6 @@ export default function App() {
             <tbody>
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
-                
-                const statusRep = getPaymentStatus(s, selectedYear, selectedMonth);
 
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -2081,9 +2088,19 @@ export default function App() {
                     )}
 
                     {reportConfig.type === 'payment' && (
-                        <td className="border border-gray-300 p-2 text-center font-black">
+                        <td className="border border-gray-300 p-2 text-[10px] font-black">
                             {s.status === 'active' ? (
-                              statusRep === 'PAID' ? <span className="text-green-700"> ከፍሏል </span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500"> ገና አልደረሰም </span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700"> ነፃ </span> : <span className="text-red-700"> አልከፈለም </span>
+                               <div className="space-y-1">
+                                  {parseInstruments(s.instrumentType).map(inst => {
+                                     const statusRep = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+                                     return (
+                                        <div key={inst}>
+                                           <span className="text-gray-500 mr-1">{inst}:</span>
+                                           {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
+                                        </div>
+                                     )
+                                  })}
+                               </div>
                             ) : (
                               <span className="text-gray-400 italic">አይመለከትም</span>
                             )}
