@@ -152,6 +152,18 @@ const parseInstruments = (instData) => {
   return String(instData).split(',').map(s => s.trim()).filter(Boolean);
 };
 
+// --- አዲስ፦ የክፍያ ድምር እና ቀደምት መክፈያ ቀን ማስሊያ ፈንክሽኖች ---
+const calculateTotalAmount = (details) => {
+  if (!details) return 0;
+  return Object.values(details).reduce((sum, item) => sum + (item.isFree ? 0 : Number(item.amount || 0)), 0);
+};
+
+const getEarliestDate = (details) => {
+  if (!details) return '';
+  const dates = Object.values(details).map(item => Number(item.date)).filter(d => !isNaN(d) && d > 0);
+  return dates.length > 0 ? Math.min(...dates).toString() : '';
+};
+
 // --- Custom Spiritual Icons & SVG ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
   <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -314,8 +326,10 @@ export default function App() {
 
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
-    workStatus: 'ተማሪ', churchService: '', parish: '', instrumentType: ['በገና'], duration: '3 ወር',
-    chosenDay: '', chosenTime: '', paymentAmount: '', isFree: false, paymentDate: '', photo: '', status: 'active', examResult: '',
+    workStatus: 'ተማሪ', churchService: '', parish: '', 
+    instrumentType: ['በገና'], 
+    paymentDetails: { 'በገና': { amount: '', date: '', isFree: false } }, // አዲስ፦ የእያንዳንዱ መሳሪያ ክፍያ መያዣ
+    duration: '3 ወር', chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
@@ -384,6 +398,7 @@ export default function App() {
         chosenTime: s.chosen_time,
         paymentAmount: s.payment_amount,
         paymentDate: s.payment_date,
+        paymentDetails: s.payment_details || {}, // አዲስ፦ የክፍያ ዝርዝር ከዳታቤዝ
         photo: s.photo,
         status: s.status,
         examResult: s.exam_result,
@@ -478,6 +493,13 @@ export default function App() {
   };
 
   const startEditingProfile = (student) => {
+    const insts = parseInstruments(student.instrumentType);
+    const pDetails = student.paymentDetails || {};
+    // ሁሉም የተመረጡ መሳሪያዎች የየራሳቸው የክፍያ ቦክስ እንዲኖራቸው ማረጋገጥ
+    insts.forEach(i => {
+       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', isFree: false };
+    });
+
     setEditFormData({
       name: student.name,
       christian_name: student.christianName || '',
@@ -487,13 +509,11 @@ export default function App() {
       work_status: student.workStatus || 'ተማሪ',
       church_service: student.churchService || '',
       parish: student.parish || '',
-      instrument_type: parseInstruments(student.instrumentType),
+      instrument_type: insts,
+      paymentDetails: pDetails,
       duration: student.duration || '3 ወር',
       chosen_day: student.chosenDay || '',
       chosen_time: student.chosenTime || '',
-      payment_amount: student.paymentAmount !== undefined ? student.paymentAmount : '',
-      payment_date: student.paymentDate || '',
-      isFree: Number(student.paymentAmount || 0) === 0,
       registration_date: student.registrationDate || ''
     });
     setIsEditingProfile(true);
@@ -518,8 +538,9 @@ export default function App() {
         duration: editFormData.duration,
         chosen_day: editFormData.chosen_day,
         chosen_time: editFormData.chosen_time,
-        payment_amount: editFormData.isFree ? 0 : Number(editFormData.payment_amount || 0),
-        payment_date: editFormData.payment_date,
+        payment_details: editFormData.paymentDetails,
+        payment_amount: calculateTotalAmount(editFormData.paymentDetails),
+        payment_date: getEarliestDate(editFormData.paymentDetails),
         registration_date: editFormData.registration_date 
       };
       
@@ -573,10 +594,6 @@ export default function App() {
   const handleAddStudentSubmit = (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
-    if (!newStudent.isFree && !newStudent.paymentAmount) {
-      showNotification("እባክዎ ወርሃዊ ክፍያ ያስገቡ ወይም ነፃ የሚለውን ይምረጡ!", "error");
-      return;
-    }
 
     triggerConfirmation(`አዲስ ተማሪ "${newStudent.name}" ለመመዝገብ መረጃው ትክክል መሆኑን ያረጋግጣሉ?`, 'የተማሪ ምዝገባ ማረጋገጫ', async () => {
         const nextNo = generateNextStudentNo();
@@ -586,8 +603,9 @@ export default function App() {
           work_status: newStudent.workStatus, church_service: newStudent.churchService, parish: newStudent.parish,
           instrument_type: Array.isArray(newStudent.instrumentType) ? newStudent.instrumentType.join(', ') : newStudent.instrumentType,
           duration: newStudent.duration, chosen_day: newStudent.chosenDay, chosen_time: newStudent.chosenTime,
-          payment_amount: newStudent.isFree ? 0 : Number(newStudent.paymentAmount || 0),
-          payment_date: newStudent.paymentDate,
+          payment_details: newStudent.paymentDetails,
+          payment_amount: calculateTotalAmount(newStudent.paymentDetails),
+          payment_date: getEarliestDate(newStudent.paymentDetails),
           photo: newStudent.photo, status: 'active', exam_result: '',
           registration_date: newStudent.registrationDate, payments: {}, attendance: {}, lesson_progress: {}
         };
@@ -836,7 +854,7 @@ export default function App() {
                 </span>
               </div>
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
-                <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ መጠን፦</span>
+                <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ ክፍያ ድምር መጠን፦</span>
                 <span className="font-black text-[#3E2723] text-sm">{student.paymentAmount > 0 ? `${student.paymentAmount} ብር` : 'ነፃ ተማሪ'}</span>
               </div>
             </div>
@@ -978,7 +996,7 @@ export default function App() {
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
     
-    // የተማሪውን መሳሪያዎች ለይቶ ማውጣት (በአዲሱ አጋዥ ፈንክሽን)
+    // የተማሪውን መሳሪያዎች ለይቶ ማውጣት
     const studentInstruments = parseInstruments(updatedStudentObj.instrumentType);
     const studentLessons = lessons.filter(l => studentInstruments.includes(l.instrument)).sort((a, b) => a.id - b.id);
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
@@ -1043,6 +1061,7 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">አገልግሎት ክፍል</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/></div>
                 </div>
                 
+                {/* ማስተካከያ፦ ከአንድ በላይ የዜማ መሳሪያ መምረጫ checkboxes */}
                 <div>
                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)</label>
                   <div className="flex flex-wrap gap-2 border border-[#D2B48C] p-2 rounded-lg bg-white">
@@ -1053,11 +1072,22 @@ export default function App() {
                           value={inst} 
                           checked={Array.isArray(editFormData.instrument_type) && editFormData.instrument_type.includes(inst)} 
                           onChange={(e) => {
-                            let current = Array.isArray(editFormData.instrument_type) ? [...editFormData.instrument_type] : [];
-                            if (e.target.checked) current.push(inst);
-                            else current = current.filter(i => i !== inst);
-                            if(current.length === 0) current.push('በገና');
-                            setEditFormData({...editFormData, instrument_type: current});
+                            let currentInsts = Array.isArray(editFormData.instrument_type) ? [...editFormData.instrument_type] : [];
+                            let currentDetails = { ...editFormData.paymentDetails };
+
+                            if (e.target.checked) {
+                                currentInsts.push(inst);
+                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', isFree: false };
+                            } else {
+                                currentInsts = currentInsts.filter(i => i !== inst);
+                                delete currentDetails[inst];
+                            }
+                            if(currentInsts.length === 0) {
+                                currentInsts.push('በገና');
+                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
+                            }
+
+                            setEditFormData({...editFormData, instrument_type: currentInsts, paymentDetails: currentDetails});
                           }} 
                           className="accent-[#8B5A2B]"
                         />
@@ -1073,30 +1103,46 @@ export default function App() {
                 </div>
                 <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 
-                <div className="grid grid-cols-2 gap-2 mt-2 border-t border-dashed border-[#D2B48C] pt-2">
-                   <div>
-                     <div className="flex justify-between items-center mb-1">
-                       <label className="text-[10px] font-black text-[#5C4033]">ክፍያ (ብር)</label>
-                       <label className="flex items-center space-x-1 text-[9px] font-black text-blue-700 cursor-pointer bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                         <input type="checkbox" checked={editFormData.isFree} onChange={(e) => setEditFormData({...editFormData, isFree: e.target.checked, payment_amount: e.target.checked ? '' : editFormData.payment_amount})} className="accent-blue-600 w-3 h-3"/>
-                         <span>ነፃ</span>
-                       </label>
-                     </div>
-                     {!editFormData.isFree ? (
-                       <input type="number" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_amount} onChange={e=>setEditFormData({...editFormData, payment_amount: e.target.value})}/>
-                     ) : (
-                       <div className="w-full border border-gray-200 bg-gray-100 p-2 rounded-lg text-[10px] font-bold text-gray-500 flex items-center justify-center">
-                          ነፃ ተማሪ
-                       </div>
-                     )}
-                   </div>
-                   <div>
-                     <label className="text-[10px] font-black text-[#5C4033] block mb-1">የክፍያ ቀን (ከ 1-30)</label>
-                     <input type="number" min="1" max="30" placeholder="15" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.payment_date} onChange={e=>setEditFormData({...editFormData, payment_date: e.target.value})} disabled={editFormData.isFree}/>
+                <div className="mt-2 border-t border-dashed border-[#D2B48C] pt-2">
+                   <p className="text-[10px] font-black text-[#8B5A2B] mb-2">የእያንዳንዱ መሳሪያ ክፍያ መረጃ ማስተካከያ፡</p>
+                   {editFormData.instrument_type.map(inst => (
+                      <div key={inst} className="mb-3 p-2 bg-[#F9F6F0] rounded-lg border border-[#EADDCA]">
+                         <div className="flex justify-between items-center mb-1.5">
+                           <label className="text-[10px] font-bold text-[#5C4033]">የ {inst} መዋጮ (ብር)</label>
+                           <label className="flex items-center space-x-1 text-[9px] font-black text-blue-700 cursor-pointer bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                             <input type="checkbox" checked={editFormData.paymentDetails?.[inst]?.isFree || false} 
+                               onChange={(e) => {
+                                 const checked = e.target.checked;
+                                 setEditFormData({
+                                     ...editFormData,
+                                     paymentDetails: { ...editFormData.paymentDetails, [inst]: { ...(editFormData.paymentDetails?.[inst] || {}), isFree: checked, amount: checked ? '0' : '' } }
+                                 });
+                               }} className="accent-blue-600 w-3 h-3"/>
+                             <span>ነፃ</span>
+                           </label>
+                         </div>
+                         <div className="grid grid-cols-2 gap-2">
+                           {!editFormData.paymentDetails?.[inst]?.isFree ? (
+                             <input type="number" placeholder="መጠን (ምሳሌ፡ 500)" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
+                               onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], amount: e.target.value}}})} 
+                               className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                           ) : (
+                             <div className="w-full border border-gray-200 bg-gray-100 p-2 rounded-lg text-[10px] font-bold text-gray-500 flex items-center justify-center">ነፃ ተማሪ</div>
+                           )}
+                           <input type="number" min="1" max="30" placeholder="የክፍያ ቀን" value={editFormData.paymentDetails?.[inst]?.date || ''} 
+                             onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], date: e.target.value}}})} 
+                             disabled={editFormData.paymentDetails?.[inst]?.isFree} 
+                             className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                         </div>
+                      </div>
+                   ))}
+                   <div className="bg-white mt-1 p-2 rounded-lg border border-[#D2B48C] flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ፡</span>
+                      <span className="font-black text-green-700">{calculateTotalAmount(editFormData.paymentDetails)} ብር</span>
                    </div>
                 </div>
 
-                <div>
+                <div className="mt-2">
                    <label className="text-[10px] font-black text-[#5C4033] block mb-1 flex items-center">
                      የተመዘገቡበት ቀን 
                      <span className="text-[#8B5A2B] ml-2 text-[9px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
@@ -1179,17 +1225,37 @@ export default function App() {
                     <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
                     <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
                   </div>
+                  
+                  {/* አዲስ፦ የእያንዳንዱን መሳሪያ ክፍያ የሚያሳይ */}
+                  <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA]">
+                    <p className="text-[10px] text-gray-500 mb-1.5 font-bold flex items-center"><Banknote size={12} className="mr-1"/> የክፍያ ዝርዝር መረጃ፡</p>
+                    <div className="space-y-1.5">
+                      {studentInstruments.map(inst => {
+                          const detail = updatedStudentObj.paymentDetails?.[inst] || {};
+                          return (
+                             <div key={inst} className="flex justify-between items-center bg-gray-50 p-1.5 rounded border border-gray-200 text-[10px]">
+                                <span className="font-bold text-[#3E2723]">የ {inst} ክፍያ</span>
+                                {detail.isFree ? (
+                                   <span className="text-blue-600 font-black bg-blue-100 px-1 rounded">ነፃ</span>
+                                ) : (
+                                   <span className="text-[#8B5A2B] font-bold">{detail.amount || 0} ብር (ቀን {detail.date || '-'})</span>
+                                )}
+                             </div>
+                          )
+                      })}
+                    </div>
+                  </div>
 
                   {updatedStudentObj.status === 'active' && (
                     <>
                       {isScholarship ? (
                         <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-blue-50 p-2 rounded">
-                          <span className="font-bold text-blue-900"> የ {selectedMonth} ክፍያ ሁኔታ፦ </span> 
+                          <span className="font-bold text-blue-900"> የ {selectedMonth} ጠቅላላ ሁኔታ፦ </span> 
                           <span className="text-blue-700 font-black bg-blue-200 px-3 py-1 rounded"> ነፃ (Scholarship) </span>
                         </div>
                       ) : (
                         <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA] flex justify-between items-center bg-gray-50 p-2 rounded">
-                          <span className="font-bold text-gray-600"> የ {selectedMonth} ክፍያ ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
+                          <span className="font-bold text-gray-600"> የ {selectedMonth} ጠቅላላ ድምር ({updatedStudentObj.paymentAmount || 0} ብር)፦ </span> 
                           {currentStatus === 'PAID' ? (
                             <span className="text-green-700 font-black bg-green-100 px-2 py-1 rounded"> ከፍሏል ✓</span>
                           ) : (currentStatus === 'CURRENT_NOT_DUE' || currentStatus === 'FUTURE_NOT_DUE') ? (
@@ -1202,7 +1268,7 @@ export default function App() {
                       
                       {studentArrearsInfo.totalArrears > 0 && (
                         <div className="col-span-2 mt-2 pt-2 border-t border-red-200 flex justify-between items-center bg-red-50 p-2 rounded shadow-inner">
-                          <span className="font-black text-red-800 flex items-center gap-1"><AlertCircle size={14}/> ጠቅላላ ያለበት ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
+                          <span className="font-black text-red-800 flex items-center gap-1"><AlertCircle size={14}/> ያለበት አጠቃላይ ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
                           <span className="text-red-700 font-black bg-red-200 px-2 py-1 rounded shadow-sm"> {studentArrearsInfo.totalArrears} ብር </span>
                         </div>
                       )}
@@ -1420,11 +1486,22 @@ export default function App() {
                       value={inst} 
                       checked={Array.isArray(newStudent.instrumentType) && newStudent.instrumentType.includes(inst)} 
                       onChange={(e) => {
-                        let current = Array.isArray(newStudent.instrumentType) ? [...newStudent.instrumentType] : [];
-                        if (e.target.checked) current.push(inst);
-                        else current = current.filter(i => i !== inst);
-                        if(current.length === 0) current.push('በገና'); // ቢያንስ አንድ መመረጥ አለበት
-                        setNewStudent({...newStudent, instrumentType: current});
+                        let currentInsts = Array.isArray(newStudent.instrumentType) ? [...newStudent.instrumentType] : [];
+                        let currentDetails = { ...newStudent.paymentDetails };
+
+                        if (e.target.checked) {
+                            currentInsts.push(inst);
+                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', isFree: false };
+                        } else {
+                            currentInsts = currentInsts.filter(i => i !== inst);
+                            delete currentDetails[inst];
+                        }
+                        if(currentInsts.length === 0) {
+                            currentInsts.push('በገና');
+                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
+                        }
+
+                        setNewStudent({...newStudent, instrumentType: currentInsts, paymentDetails: currentDetails});
                       }} 
                       className="accent-[#8B5A2B] w-4 h-4 rounded" 
                     />
@@ -1447,50 +1524,44 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
             </div>
 
+            {/* አዲስ፦ ለእያንዳንዱ መሳሪያ ክፍያ መሙያ */}
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-bold text-[#5C4033] ml-1">ወርሃዊ መዋጮ (ብር)</label>
-                <label className="flex items-center space-x-1.5 text-xs font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 shadow-sm">
-                  <input 
-                    type="checkbox" 
-                    checked={newStudent.isFree || false} 
-                    onChange={(e) => setNewStudent({
-                      ...newStudent, 
-                      isFree: e.target.checked, 
-                      paymentAmount: e.target.checked ? '0' : ''
-                    })} 
-                    className="accent-blue-600 w-3.5 h-3.5"
-                  />
-                  <span>በነፃ የሚማር (Scholarship)</span>
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {!newStudent.isFree ? (
-                  <input 
-                    type="number" 
-                    required 
-                    placeholder="500" 
-                    className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" 
-                    value={newStudent.paymentAmount} 
-                    onChange={(e) => setNewStudent({...newStudent, paymentAmount: e.target.value})} 
-                  />
-                ) : (
-                  <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">
-                    ነፃ ተማሪ
-                  </div>
-                )}
-                <div className="relative">
-                  <input 
-                    type="number" 
-                    min="1" 
-                    max="30" 
-                    placeholder="የክፍያ ቀን (ለምሳሌ 15)" 
-                    className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" 
-                    value={newStudent.paymentDate} 
-                    onChange={(e) => setNewStudent({...newStudent, paymentDate: e.target.value})}
-                    disabled={newStudent.isFree}
-                  />
-                </div>
+              <p className="text-[11px] font-black text-[#8B5A2B] mb-2">የመሳሪያዎች የክፍያ ዝርዝር፡</p>
+              {newStudent.instrumentType.map(inst => (
+                 <div key={inst} className="mb-3 p-3 bg-white/50 rounded-xl border border-[#D2B48C]">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-bold text-[#5C4033] ml-1">የ {inst} ወርሃዊ መዋጮ</label>
+                      <label className="flex items-center space-x-1.5 text-[10px] font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 shadow-sm">
+                        <input type="checkbox" checked={newStudent.paymentDetails?.[inst]?.isFree || false}
+                           onChange={(e) => {
+                               const checked = e.target.checked;
+                               setNewStudent({
+                                   ...newStudent,
+                                   paymentDetails: { ...newStudent.paymentDetails, [inst]: { ...(newStudent.paymentDetails?.[inst] || {}), isFree: checked, amount: checked ? '0' : '' } }
+                               });
+                           }} className="accent-blue-600 w-3.5 h-3.5" />
+                        <span>ነፃ (Scholarship)</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       {!newStudent.paymentDetails?.[inst]?.isFree ? (
+                          <input type="number" placeholder="መጠን (ብር)" value={newStudent.paymentDetails?.[inst]?.amount || ''}
+                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], amount: e.target.value}}})}
+                             className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                       ) : (
+                          <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">ነፃ ተማሪ</div>
+                       )}
+                       <input type="number" min="1" max="30" placeholder="መክፈያ ቀን (1-30)" value={newStudent.paymentDetails?.[inst]?.date || ''}
+                          onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], date: e.target.value}}})}
+                          disabled={newStudent.paymentDetails?.[inst]?.isFree}
+                          className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                    </div>
+                 </div>
+              ))}
+              
+              <div className="bg-[#FAF3E0] mt-3 p-3 rounded-xl border border-[#D2B48C] flex justify-between items-center text-sm shadow-inner">
+                 <span className="font-black text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ (ድምር)፡</span>
+                 <span className="font-black text-green-700">{calculateTotalAmount(newStudent.paymentDetails)} ብር</span>
               </div>
             </div>
           </div>
@@ -1537,7 +1608,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
-                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{student.instrumentType} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{parseInstruments(student.instrumentType).join('፣ ')} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
                 </div>
               </div>
 
@@ -1859,7 +1930,7 @@ export default function App() {
                         {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                        {student.instrumentType} | {status === 'SCHOLARSHIP' ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
+                        {parseInstruments(student.instrumentType).join('፣ ')} | {status === 'SCHOLARSHIP' ? 'ነፃ (0 ብር)' : `${amt} ብር`} 
                         {status !== 'SCHOLARSHIP' ? ` (ቀን ${pDate})` : ''}
                       </p>
                     </div>
@@ -2002,7 +2073,7 @@ export default function App() {
                          <td className="border border-gray-300 p-2 font-mono text-[11px]">{formatEthDate(s.registrationDate)}</td>
                        </>
                     )}
-                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{s.instrumentType || '-'}</td>
+                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{parseInstruments(s.instrumentType).join('፣ ')}</td>
                     <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B]">{s.duration || '-'}</td>
                     
                     {reportConfig.type === 'general' && (
