@@ -687,7 +687,8 @@ export default function App() {
 
   const handleTogglePaymentWithConfirm = (student, basePeriodKey, inst) => {
     const key = `${basePeriodKey}_${inst}`;
-    const isPaid = student.payments?.[key] || false;
+    const legacyKey = basePeriodKey;
+    const isPaid = student.payments?.[key] || student.payments?.[legacyKey] || false;
     const actionText = isPaid ? 'አልከፈለም' : 'ከፍሏል';
     const updatedPayments = { ...student.payments, [key]: !isPaid };
     triggerConfirmation(`የተማሪ "${student.name}" የ ${inst} ክፍያ ሁኔታ ወደ "${actionText}" እንዲቀየር ይፈልጋሉ?`, 'የክፍያ ማረጋገጫ ሰነድ', async () => {
@@ -882,7 +883,7 @@ export default function App() {
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm flex justify-between items-center">
                 <div>
                    <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የ {activeInst} መጠን፦</span>
-                   <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || 0} ብር`}</span>
+                   <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || student.paymentAmount || 0} ብር`}</span>
                 </div>
               </div>
             </div>
@@ -894,8 +895,9 @@ export default function App() {
               const legacyKey = item.key;
               const isPaid = student.payments?.[fullKey] || student.payments?.[legacyKey] || false;
               
-              const statusColor = isPaid ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200' :
-                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200' :
+              // አረንጓዴ፣ ቀይ፣ ቢጫ ሎጂክ
+              const statusColor = isPaid ? 'bg-green-100 text-[#2E7D32] border-green-400 hover:bg-green-200' :
+                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-100 text-yellow-700 border-yellow-400 hover:bg-yellow-200' :
                   'bg-red-100 text-red-700 border-red-300 hover:bg-red-200');
                   
               const iconColor = isPaid ? 'bg-green-50 border-green-300 text-green-700' :
@@ -1034,6 +1036,7 @@ export default function App() {
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
     
+    // የተማሪውን መሳሪያዎች ለይቶ ማውጣት
     const studentInstruments = parseInstruments(updatedStudentObj.instrumentType);
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
@@ -1060,7 +1063,7 @@ export default function App() {
                   {editStudentNoState.isEditing ? (
                     <div className="flex items-center gap-1 bg-white/20 p-0.5 rounded">
                       <input type="text" value={editStudentNoState.value} onChange={e => setEditStudentNoState({...editStudentNoState, value: e.target.value})} className="text-[#3E2723] px-1 py-0.5 rounded w-14 text-[10px] font-black focus:outline-none" autoFocus/>
-                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-500 text-white p-1 rounded transition-colors"><Check size={10}/></button>
+                      <button onClick={() => handleStudentNoSave(updatedStudentObj)} className="bg-green-600 hover:bg-green-50 text-white p-1 rounded transition-colors"><Check size={10}/></button>
                       <button onClick={() => setEditStudentNoState({isEditing: false, value: ''})} className="bg-red-600 hover:bg-red-500 text-white p-1 rounded transition-colors"><X size={10}/></button>
                     </div>
                   ) : (
@@ -1135,7 +1138,7 @@ export default function App() {
                 <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 
                 <div className="mt-2 border-t border-dashed border-[#D2B48C] pt-2">
-                   <p className="text-[10px] font-black text-[#8B5A2B] mb-2">የእያንዳንዱ መሳሪያ ክፍያ መረጃ፡</p>
+                   <p className="text-[10px] font-black text-[#8B5A2B] mb-2">የእያንዳንዱ መሳሪያ ክፍያ መረጃ ማስተካከያ፡</p>
                    {editFormData.instrument_type.map(inst => (
                       <div key={inst} className="mb-2 p-2 bg-[#F9F6F0] rounded-lg border border-[#EADDCA]">
                          <div className="flex justify-between items-center mb-1.5">
@@ -1154,7 +1157,7 @@ export default function App() {
                          </div>
                          <div className="grid grid-cols-2 gap-2">
                            {!editFormData.paymentDetails?.[inst]?.isFree ? (
-                             <input type="number" placeholder="መጠን" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
+                             <input type="number" placeholder="መጠን (ምሳሌ፡ 500)" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
                                onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], amount: e.target.value}}})} 
                                className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
                            ) : (
@@ -1285,6 +1288,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* 3. የተሻሻለ፦ የትምህርት ደረጃ ክትትል (Lesson Plan) በየመሳሪያው */}
               <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm mb-4">
                 <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><ListMusic size={14} className="mr-1"/> የትምህርት ደረጃ ክትትል (Progress)</h4>
                 <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
@@ -1515,7 +1519,7 @@ export default function App() {
                             delete currentDetails[inst];
                         }
                         if(currentInsts.length === 0) {
-                            currentInsts.push('በገና');
+                            currentInsts.push('በገና'); // ቢያንስ አንድ መመረጥ አለበት
                             if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
                         }
 
@@ -1886,6 +1890,7 @@ export default function App() {
     );
   };
 
+  // 1. የተሻሻለ የክፍያ ገፅ፦ ዲዛይኑ ወደ ኦሪጅናል ስታንዳርዱ ተመልሷል (አነስ ያለ እና ማራኪ አቀማመጥ)
   const renderPaymentsView = () => {
     let filteredPaymentStudents = activeStudents.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
@@ -1914,14 +1919,14 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors"><Printer size={14} /> ሪፖርት</button>
         </div>
 
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1 shadow-sm">
+        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
           <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({activeStudents.length})</button>
           <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ</button>
           <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3 shadow-sm">
-          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓ.ም፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
+          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓመተ ምሕረት፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
           <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> የዕለት ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
 
@@ -1936,18 +1941,17 @@ export default function App() {
             
             return (
               <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
-                <div className="flex items-center justify-between w-full mb-3">
-                  
+                <div className="flex items-center justify-between w-full">
                   <div 
                     onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
                     className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 bg-gray-50 border-gray-300`}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 bg-gray-50 border-gray-300">
                       <CreditCard size={20} className="text-gray-500" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1.5">
+                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
                         {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
@@ -1957,48 +1961,29 @@ export default function App() {
                   </div>
                 </div>
                 
-                <div className="space-y-2 border-t border-gray-100 pt-3">
+                <div className="space-y-2 mt-2 border-t border-gray-100 pt-2">
                   {insts.map(inst => {
                      const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
                      const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
                      const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
                      
-                     let btnClass = '';
-                     let btnText = '';
-                     let statusBg = '';
-
-                     if (status === 'SCHOLARSHIP') {
-                        btnClass = 'bg-blue-100 text-blue-800 border-blue-400';
-                        btnText = 'ነፃ ተማሪ';
-                        statusBg = 'bg-blue-50/50 border-blue-100';
-                     } else if (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') {
-                        btnClass = 'bg-yellow-100 text-yellow-800 border-yellow-400 hover:bg-yellow-200';
-                        btnText = 'ገና አልደረሰም';
-                        statusBg = 'bg-yellow-50/30 border-yellow-100';
-                     } else if (status === 'PAID') {
-                        btnClass = 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200';
-                        btnText = 'ከፍሏል ✓';
-                        statusBg = 'bg-green-50/30 border-green-100';
-                     } else {
-                        btnClass = 'bg-red-100 text-red-800 border-red-400 hover:bg-red-200';
-                        btnText = 'አልከፈለም ✗';
-                        statusBg = 'bg-red-50/30 border-red-100';
-                     }
-
                      return (
-                        <div key={inst} className={`flex justify-between items-center p-2 rounded-lg border ${statusBg}`}>
+                        <div key={inst} className="flex justify-between items-center bg-white">
                            <div>
-                              <span className="font-bold text-[10px] text-[#3E2723]">{inst} </span>
-                              <span className="text-[9px] text-gray-500 ml-1">
+                              <span className="font-bold text-xs text-[#3E2723]">{inst} </span>
+                              <span className="text-[10px] text-gray-500 ml-1">
                                 {status === 'SCHOLARSHIP' ? '(ነፃ)' : `(${amt} ብር | ቀን ${pDate})`}
                               </span>
                            </div>
                            
+                           {/* አረንጓዴ፣ ቀይ፣ ቢጫ ሎጂክ ተመልሷል */}
                            {status === 'SCHOLARSHIP' ? (
-                             <span className={`px-3 py-1.5 text-[9px] font-black rounded-lg border ${btnClass}`}>ነፃ</span>
+                             <span className="px-3 py-1 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-700 border border-blue-300">ነፃ</span>
+                           ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className="px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-yellow-50 text-yellow-700 border border-yellow-300 hover:bg-yellow-100">ገና አልደረሰም</button>
                            ) : (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-3 py-1.5 text-[9px] font-black rounded-lg border shadow-sm transition-colors active:scale-95 ${btnClass}`}>
-                                {btnText}
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[10px] font-bold rounded-xl transition-all shadow-sm ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400' : 'bg-red-100 text-red-700 border border-red-300'}`}>
+                                {status === 'PAID' ? 'ከፍሏል' : 'አልከፈለም'}
                              </button>
                            )}
                         </div>
@@ -2008,7 +1993,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold bg-white rounded-2xl border border-[#D2B48C]"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
