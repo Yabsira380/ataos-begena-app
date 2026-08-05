@@ -101,7 +101,6 @@ const getDueDayForMonth = (student, cY, cMIdx, inst) => {
     let regMonthIdx = 0;
     let regDay = 1;
 
-    // ለስሌቱ የመሳሪያውን የጀመረበትን ቀን ይጠቀማል (ከሌለ አጠቃላይ የምዝገባ ቀኑን)
     const instStartDate = student.paymentDetails?.[inst]?.startDate || student.registrationDate;
 
     if (instStartDate) {
@@ -133,7 +132,6 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr, inst) => {
 
     const instStartDate = student.paymentDetails?.[inst]?.startDate || student.registrationDate;
 
-    // የመሳሪያውን የጀመረበትን ቀን ተጠቅሞ ታሪኩ መታየት እንዳለበት ያረጋግጣል
     if (!isEligibleForPaymentPeriod(instStartDate, targetYearStr, targetMonthStr)) {
         return 'NOT_ELIGIBLE';
     }
@@ -347,7 +345,7 @@ export default function App() {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', 
     instrumentType: ['በገና'], 
-    paymentDetails: { 'በገና': { amount: '', date: '', startDate: getTodayString(), isFree: false } },
+    paymentDetails: { 'በገና': { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' } },
     duration: '3 ወር', chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
@@ -528,7 +526,7 @@ export default function App() {
     const insts = parseInstruments(student.instrumentType);
     const pDetails = student.paymentDetails || {};
     insts.forEach(i => {
-       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', startDate: student.registrationDate || getTodayString(), isFree: false };
+       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', startDate: student.registrationDate || getTodayString(), isFree: false, status: 'active' };
     });
 
     setEditFormData({
@@ -730,17 +728,37 @@ export default function App() {
     });
   };
 
-  const setStudentStatusWithConfirm = (student, newStatus) => {
+  // 2. የተሻሻለ፦ ሁኔታን ለየመሳሪያው የሚቆጣጠር አዲስ ፈንክሽን
+  const setInstrumentStatusWithConfirm = (student, inst, newStatus) => {
     let statusAmharic = '';
     if (newStatus === 'completed') statusAmharic = 'ትምህርቱን ያጠናቀቀ (ምሩቅ)';
     else if (newStatus === 'dropped') statusAmharic = 'ትምህርቱን ያቋረጠ';
     else statusAmharic = 'በመማር ላይ ያለ (Active)';
-    triggerConfirmation(`የተማሪ "${student.name}" የትምህርት ሁኔታ ወደ "${statusAmharic}" እንዲለወጥ ይፈልጋሉ?`, 'የተማሪ የትምህርት ደረጃ ለውጥ', async () => {
-        const success = await updateStudentInDb(student.id, { status: newStatus });
+    
+    triggerConfirmation(`የተማሪ "${student.name}" የ ${inst} ትምህርት ሁኔታ ወደ "${statusAmharic}" እንዲለወጥ ይፈልጋሉ?`, 'የትምህርት ደረጃ ለውጥ', async () => {
+        const updatedDetails = { ...student.paymentDetails };
+        if (!updatedDetails[inst]) updatedDetails[inst] = { amount: '', date: '', startDate: student.registrationDate, isFree: false };
+        updatedDetails[inst].status = newStatus;
+
+        // የአጠቃላይ (Global) ሁኔታ ስሌት
+        const allInsts = parseInstruments(student.instrumentType);
+        let allCompleted = true;
+        let allDropped = true;
+        allInsts.forEach(i => {
+            const st = updatedDetails[i]?.status || 'active';
+            if (st !== 'completed') allCompleted = false;
+            if (st !== 'dropped') allDropped = false;
+        });
+        
+        let globalStatus = 'active';
+        if (allCompleted) globalStatus = 'completed';
+        else if (allDropped) globalStatus = 'dropped';
+
+        const success = await updateStudentInDb(student.id, { payment_details: updatedDetails, status: globalStatus });
         if (success) {
-          if (newStatus === 'completed') showNotification('ተማሪው ትምህርቱን ማጠናቀቁ ተመዝግቧል!', 'success');
-          else if (newStatus === 'dropped') showNotification('ተማሪው ትምህርቱን ማቋረጡ ተመዝግቧል!', 'success');
-          else showNotification('ተማሪው ወደ ትምህርት ገበታ ተመልሷል!', 'success');
+          if (newStatus === 'completed') showNotification(`ተማሪው የ ${inst} ትምህርቱን ማጠናቀቁ ተመዝግቧል!`, 'success');
+          else if (newStatus === 'dropped') showNotification(`ተማሪው የ ${inst} ትምህርቱን ማቋረጡ ተመዝግቧል!`, 'success');
+          else showNotification(`ተማሪው ወደ ${inst} ትምህርት ገበታ ተመልሷል!`, 'success');
         }
     });
   };
@@ -1154,14 +1172,14 @@ export default function App() {
 
                             if (e.target.checked) {
                                 currentInsts.push(inst);
-                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
+                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
                             } else {
                                 currentInsts = currentInsts.filter(i => i !== inst);
                                 delete currentDetails[inst];
                             }
                             if(currentInsts.length === 0) {
                                 currentInsts.push('በገና');
-                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
+                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
                             }
 
                             setEditFormData({...editFormData, instrument_type: currentInsts, paymentDetails: currentDetails});
@@ -1227,7 +1245,7 @@ export default function App() {
 
                 <div className="mt-2">
                    <label className="text-[10px] font-black text-[#5C4033] block mb-1 flex items-center">
-                     የተመዘገቡበት (የመጀመሪያ) ቀን 
+                     የተመዘገቡበት ቀን 
                      <span className="text-[#8B5A2B] ml-2 text-[9px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
                    </label>
                    <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
@@ -1504,7 +1522,7 @@ export default function App() {
           <div className="space-y-3">
             <div className="bg-amber-50/60 p-3 rounded-2xl border border-[#D2B48C] mb-2">
               <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1 flex items-center">
-                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን (የመጀመሪያ) ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
+                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
               </label>
               <input 
                 type="date" 
@@ -1564,14 +1582,14 @@ export default function App() {
 
                         if (e.target.checked) {
                             currentInsts.push(inst);
-                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
+                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
                         } else {
                             currentInsts = currentInsts.filter(i => i !== inst);
                             delete currentDetails[inst];
                         }
                         if(currentInsts.length === 0) {
                             currentInsts.push('በገና'); // ቢያንስ አንድ መመረጥ አለበት
-                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
+                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
                         }
 
                         setNewStudent({...newStudent, instrumentType: currentInsts, paymentDetails: currentDetails});
@@ -1653,7 +1671,18 @@ export default function App() {
   );
 
   const renderAcademicView = () => {
-    const filteredInfoStudents = students.filter(s => s.status === academicViewType && (s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch))));
+    // 2. የተሻሻለ፦ በአዲሱ ሎጂክ መሰረት ፊልተር ማድረግ (ተማሪው ቢያንስ አንድ የተመረጠው Status ያለው መሳሪያ ካለው ያሳያል)
+    const filteredInfoStudents = students.filter(s => {
+        const searchMatch = s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch));
+        if (!searchMatch) return false;
+        
+        const insts = parseInstruments(s.instrumentType);
+        return insts.some(inst => {
+            const st = s.paymentDetails?.[inst]?.status || s.status;
+            return st === academicViewType;
+        });
+    });
+
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
         <div className="flex justify-between items-center mb-2">
@@ -1679,68 +1708,127 @@ export default function App() {
 
         <div className="space-y-4">
           {filteredInfoStudents.map(student => (
-            <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
-              <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
-                <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
-                  {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={18} className="text-[#8B5A2B]"/>}
+            <div key={student.id} className="bg-white rounded-3xl p-5 border-2 border-[#EADDCA] shadow-md">
+              <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-4 cursor-pointer mb-4 pb-4 border-b border-gray-200 relative z-10 hover:bg-gray-50 rounded-xl p-2 -m-2 transition-colors">
+                <div className="w-12 h-12 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
+                  {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={20} className="text-[#8B5A2B]"/>}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
-                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{parseInstruments(student.instrumentType).join('፣ ')} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
+                  <h3 className="font-black text-[#3E2723] text-base">{student.name} <span className="text-[11px] text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded ml-1">#{student.studentNo}</span></h3>
+                  <p className="text-xs text-gray-500 font-bold mt-1">{parseInstruments(student.instrumentType).join('፣ ')} <span className="text-gray-300 mx-1">|</span> {formatEthDate(student.registrationDate)}</p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 w-full">
+              {/* 1. የተሻሻለ፦ የውጤት መሙያው ፅሁፍ ጎላ ብሎ ተዘጋጅቷል */}
+              <div className="flex flex-col gap-4 w-full">
                 {parseInstruments(student.instrumentType).map(inst => {
+                   const instStatus = student.paymentDetails?.[inst]?.status || student.status;
+                   
                    return (
-                     <div key={inst} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                     <div key={inst} className="flex flex-col">
                         {inst === 'በገና' ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-3 gap-2">
+                           <div className="flex-1 bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <span className="text-sm font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-2 mb-3"> የ {inst} ቅኝት ውጤት </span>
+                              <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ሰላምታ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_selamta`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_selamta`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ሰላምታ</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_selamta`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_selamta`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ዋኔን</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_wanen`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_wanen`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ዋኔን</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_wanen`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_wanen`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ስለቸርነትህ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_silechernetih`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_silechernetih`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ስለቸርነትህ</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_silechernetih`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_silechernetih`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                               </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
+                              <div className="flex justify-between items-center pt-4">
+                                <span className="text-sm font-black text-[#3E2723] bg-white px-3 py-1.5 rounded-lg border border-[#D2B48C] shadow-sm">
                                   ድምር: {(Number(kignitScores[student.id]?.[`${inst}_selamta`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_wanen`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_silechernetih`]) || 0)}
                                 </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_selamta`]) || 0) + (Number(s[`${inst}_wanen`]) || 0) + (Number(s[`${inst}_silechernetih`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_selamta`]) || 0) + (Number(s[`${inst}_wanen`]) || 0) + (Number(s[`${inst}_silechernetih`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-5 py-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={16} className="inline mr-1"/> መዝግብ</button>
+                              </div>
+                              
+                              {/* 2. የተሻሻለ፦ የየመሳሪያው የመመረቂያ/ማቋረጫ ቁልፎች */}
+                              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-dashed border-[#D2B48C]">
+                                  {instStatus === 'active' ? (
+                                    <>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <Award size={14}/> ምረቅ
+                                      </button>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <UserMinus size={14}/> አቋርጧል
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                      <XCircle size={14}/> ወደ ትምህርት መልስ
+                                    </button>
+                                  )}
                               </div>
                            </div>
                         ) : (inst === 'ክራር' || inst === 'ማሲንቆ') ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-4 gap-2">
+                           <div className="flex-1 bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <span className="text-sm font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-2 mb-3"> የ {inst} ቅኝት ውጤት </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {['tizita', 'anchihoye', 'bati_minor', 'ambasel'].map(k => (
                                   <div key={k}>
-                                    <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1 truncate">{k === 'tizita' ? 'ትዝታ' : k === 'anchihoye' ? 'አንቺሆዬ' : k === 'bati_minor' ? 'ባቲ' : 'አምባሰል'}</label>
-                                    <input type="number" value={kignitScores[student.id]?.[`${inst}_${k}`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_${k}`]: e.target.value}})} className="w-full px-1 py-1 bg-white border border-[#D2B48C] rounded-lg text-[10px] font-bold text-center" />
+                                    <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5 truncate">{k === 'tizita' ? 'ትዝታ' : k === 'anchihoye' ? 'አንቺሆዬ' : k === 'bati_minor' ? 'ባቲ' : 'አምባሰል'}</label>
+                                    <input type="number" value={kignitScores[student.id]?.[`${inst}_${k}`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_${k}`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                   </div>
                                 ))}
                               </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
+                              <div className="flex justify-between items-center pt-4">
+                                <span className="text-sm font-black text-[#3E2723] bg-white px-3 py-1.5 rounded-lg border border-[#D2B48C] shadow-sm">
                                   ድምር: {(Number(kignitScores[student.id]?.[`${inst}_tizita`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_anchihoye`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_bati_minor`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_ambasel`]) || 0)}
                                 </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_tizita`]) || 0) + (Number(s[`${inst}_anchihoye`]) || 0) + (Number(s[`${inst}_bati_minor`]) || 0) + (Number(s[`${inst}_ambasel`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_tizita`]) || 0) + (Number(s[`${inst}_anchihoye`]) || 0) + (Number(s[`${inst}_bati_minor`]) || 0) + (Number(s[`${inst}_ambasel`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-5 py-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={16} className="inline mr-1"/> መዝግብ</button>
+                              </div>
+                              
+                              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-dashed border-[#D2B48C]">
+                                  {instStatus === 'active' ? (
+                                    <>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <Award size={14}/> ምረቅ
+                                      </button>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <UserMinus size={14}/> አቋርጧል
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                      <XCircle size={14}/> ወደ ትምህርት መልስ
+                                    </button>
+                                  )}
                               </div>
                            </div>
                         ) : (
-                           <div className="flex-1 flex items-center space-x-2 bg-amber-50/50 p-2 rounded-xl border border-[#D2B48C]">
-                              <span className="text-[10px] font-black text-[#5C4033] min-w-[75px]"> የ {inst} ውጤት</span>
-                              <input type="number" placeholder="ውጤት" value={tempScores[student.id]?.[inst] || ''} onChange={(e) => setTempScores({ ...tempScores, [student.id]: {...(tempScores[student.id] || {}), [inst]: e.target.value} })} className="w-full max-w-[70px] px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
-                              <button onClick={() => { const enteredScore = tempScores[student.id]?.[inst]; if (enteredScore) handleExamScoreSubmit(student.id, enteredScore); }} className="p-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg"><Check size={14} /></button>
+                           <div className="flex-1 flex flex-col justify-between bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-black text-[#5C4033]"> የ {inst} ውጤት (%)</span>
+                                <div className="flex items-center gap-2">
+                                   <input type="number" placeholder="ውጤት" value={tempScores[student.id]?.[inst] || ''} onChange={(e) => setTempScores({ ...tempScores, [student.id]: {...(tempScores[student.id] || {}), [inst]: e.target.value} })} className="w-20 px-3 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
+                                   <button onClick={() => { const enteredScore = tempScores[student.id]?.[inst]; if (enteredScore) handleExamScoreSubmit(student.id, enteredScore); }} className="p-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg transition-all shadow-sm active:scale-95"><Check size={18} /></button>
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-dashed border-[#D2B48C]">
+                                  {instStatus === 'active' ? (
+                                    <>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <Award size={14}/> ምረቅ
+                                      </button>
+                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <UserMinus size={14}/> አቋርጧል
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                      <XCircle size={14}/> ወደ ትምህርት መልስ
+                                    </button>
+                                  )}
+                              </div>
                            </div>
                         )}
                      </div>
@@ -1748,23 +1836,9 @@ export default function App() {
                 })}
               </div>
 
-              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
-                {student.status === 'active' ? (
-                  <>
-                    <button onClick={() => setStudentStatusWithConfirm(student, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
-                      <Award size={12}/> ምረቅ
-                    </button>
-                    <button onClick={() => setStudentStatusWithConfirm(student, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
-                      <UserMinus size={12}/> አቋርጧል
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => setStudentStatusWithConfirm(student, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
-                    <XCircle size={14}/> ወደ ትምህርት መልስ
-                  </button>
-                )}
-                <button onClick={() => askToDeleteStudent(student)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-100">
-                  <Trash2 size={16} />
+              <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
+                <button onClick={() => askToDeleteStudent(student)} className="px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-red-100 text-xs font-bold flex items-center gap-1.5">
+                  <Trash2 size={16} /> ተማሪውን ሰርዝ (Delete Student)
                 </button>
               </div>
             </div>
@@ -1995,7 +2069,6 @@ export default function App() {
           {filteredPaymentStudents.map(student => {
             const insts = parseInstruments(student.instrumentType);
             
-            // 2. የተሻሻለ፦ የካርድ ምልክት ዋና ቀለም ስሌት
             let isAnyUnpaid = false;
             let isAllPaidOrScholar = true;
 
@@ -2005,26 +2078,24 @@ export default function App() {
                 if (st !== 'PAID' && st !== 'SCHOLARSHIP') isAllPaidOrScholar = false;
             });
 
-            // ቀይ ካለ ቀይ ያበራል፣ አለበለዚያ ሁሉም ከተከፈለ አረንጓዴ፣ አለበለዚያ ቢጫ (ክፍያ ያልደረሰ)
             const iconBgClass = isAnyUnpaid ? 'bg-red-50 border-red-300 text-red-600' :
                                 isAllPaidOrScholar ? 'bg-green-50 border-green-300 text-green-600' :
                                 'bg-yellow-50 border-yellow-300 text-yellow-600';
             
             return (
-              <div key={student.id} className="flex flex-col p-5 bg-white rounded-3xl shadow-md border-[3px] border-[#D4AF37]/50 hover:border-[#8B5A2B] transition-all">
-                <div className="flex items-center justify-between w-full mb-1">
-                  
+              <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
+                <div className="flex items-center justify-between w-full mb-2">
                   <div 
                     onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 -ml-2 rounded-2xl transition-colors flex-1"
+                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
                   >
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${iconBgClass}`}>
-                      <CreditCard size={24} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${iconBgClass}`}>
+                      <CreditCard size={20} />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1.5">
-                        {student.name} <History size={14} className="text-[#8B5A2B] opacity-70"/>
+                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
+                        {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
                         {insts.join('፣ ')} <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[9px] ml-1">#{student.studentNo}</span>
@@ -2033,14 +2104,12 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* 1. የተሻሻለ፦ በሚያምር እና ወፈር ባለ መስመር ተቀይሯል */}
-                <div className="space-y-3 border-t-4 border-[#8B5A2B]/20 pt-4 mt-2 rounded-t-sm">
+                <div className="space-y-2 border-t-4 border-[#8B5A2B]/20 pt-3">
                   {insts.map(inst => {
                      const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
                      const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
                      const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
                      
-                     // 3. የተሻሻለ፦ በኦሪጅናል ዲዛይኑ መሰረት አረንጓዴ፣ ቀይ እና ቢጫ
                      let btnClass = '';
                      let btnText = '';
 
@@ -2092,7 +2161,13 @@ export default function App() {
 
     let displayedStudentsForReport = [...students];
     if (reportConfig.statusFilter !== 'all') {
-      displayedStudentsForReport = students.filter(s => s.status === reportConfig.statusFilter);
+      displayedStudentsForReport = students.filter(s => {
+          const insts = parseInstruments(s.instrumentType);
+          return insts.some(inst => {
+              const st = s.paymentDetails?.[inst]?.status || s.status;
+              return st === reportConfig.statusFilter;
+          });
+      });
     }
 
     const filterTitles = {
@@ -2139,6 +2214,22 @@ export default function App() {
             <p className="mt-1 text-sm text-gray-500"> ዓ.ም: {selectedYear} | ወር: {selectedMonth} | ቀን: {new Date().toLocaleDateString('am-ET')}</p>
           </div>
 
+          {reportConfig.type === 'general' && (
+            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <h3 className="text-base font-black border-b border-gray-300 mb-3 pb-1"> ማጠቃለያ </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p><span className="font-bold"> በዚህ ሪፖርት ላይ ያሉ ተማሪዎች ድምር:</span> {displayedStudentsForReport.length} ተማሪ</p>
+                  <p><span className="font-bold"> በመማር ላይ ያሉ ድምር:</span> {displayedStudentsForReport.filter(s => s.status === 'active').length}</p>
+                </div>
+                <div>
+                  <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0 || getPaymentStatus(s, selectedYear, selectedMonth) === 'CURRENT_NOT_DUE' || getPaymentStatus(s, selectedYear, selectedMonth) === 'FUTURE_NOT_DUE')).length}</p>
+                  <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <table className="w-full border-collapse border border-gray-300 text-left text-xs sm:text-sm">
             <thead>
               <tr className="bg-gray-100 text-gray-700">
@@ -2151,13 +2242,16 @@ export default function App() {
                    </>
                 )}
                 <th className="border border-gray-300 p-2"> መሳሪያ </th>
-                <th className="border border-gray-300 p-2"> የጊዜ ቆይታ </th>
+                {reportConfig.type !== 'academic' && <th className="border border-gray-300 p-2"> የጊዜ ቆይታ </th>}
                 {reportConfig.type === 'general' && <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>}
                 {reportConfig.type === 'payment' && <th className="border border-gray-300 p-2 text-center"> የ {selectedMonth} ክፍያ </th>}
                 {reportConfig.type === 'attendance' && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት) </th>}
+                
+                {/* 3. የተሻሻለ፦ የአካዳሚክ ሪፖርት የቅኝት ዝርዝር ያካትታል */}
                 {reportConfig.type === 'academic' && (
                   <>
-                    <th className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">ውጤት</th>
+                    <th className="border border-gray-300 p-2 text-center text-xs">ውጤት ዝርዝር (ቅኝት)</th>
+                    <th className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">ድምር</th>
                     <th className="border border-gray-300 p-2 text-center"> ሁኔታ </th>
                   </>
                 )}
@@ -2166,53 +2260,86 @@ export default function App() {
             <tbody>
               {displayedStudentsForReport.map((s, idx) => {
                 const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
+                const insts = parseInstruments(s.instrumentType);
 
                 return (
                   <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 p-2 font-bold">{s.studentNo}</td>
-                    <td className="border border-gray-300 p-2 font-bold">{s.name}</td>
+                    <td className="border border-gray-300 p-2 font-bold align-top">{s.studentNo}</td>
+                    <td className="border border-gray-300 p-2 font-bold align-top">{s.name}</td>
                     {reportConfig.type !== 'academic' && (
                        <>
-                         <td className="border border-gray-300 p-2">{s.phone}</td>
-                         <td className="border border-gray-300 p-2 font-mono text-[11px]">{formatEthDate(s.registrationDate)}</td>
+                         <td className="border border-gray-300 p-2 align-top">{s.phone}</td>
+                         <td className="border border-gray-300 p-2 font-mono text-[11px] align-top">{formatEthDate(s.registrationDate)}</td>
                        </>
                     )}
-                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600">{parseInstruments(s.instrumentType).join('፣ ')}</td>
-                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B]">{s.duration || '-'}</td>
+                    
+                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600 align-top">
+                       {insts.map(inst => <div key={inst} className="mb-1">{inst}</div>)}
+                    </td>
+                    
+                    {reportConfig.type !== 'academic' && <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B] align-top">{s.duration || '-'}</td>}
                     
                     {reportConfig.type === 'general' && (
-                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? `${s.examResult}%` : '-'}</td>
+                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">{s.examResult ? `${s.examResult}%` : '-'}</td>
                     )}
 
                     {reportConfig.type === 'payment' && (
-                        <td className="border border-gray-300 p-2 text-[10px] font-black">
-                            {s.status === 'active' ? (
-                               <div className="space-y-1">
-                                  {parseInstruments(s.instrumentType).map(inst => {
-                                     const statusRep = getPaymentStatus(s, selectedYear, selectedMonth, inst);
-                                     return (
-                                        <div key={inst}>
-                                           <span className="text-gray-500 mr-1">{inst}:</span>
-                                           {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
-                                        </div>
-                                     )
-                                  })}
-                               </div>
-                            ) : (
-                              <span className="text-gray-400 italic">አይመለከትም</span>
-                            )}
+                        <td className="border border-gray-300 p-2 text-[10px] font-black align-top">
+                            <div className="space-y-1">
+                               {insts.map(inst => {
+                                  const statusRep = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+                                  return (
+                                     <div key={inst}>
+                                        <span className="text-gray-500 mr-1">{inst}:</span>
+                                        {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
+                                     </div>
+                                  )
+                               })}
+                            </div>
                         </td>
                     )}
 
                     {reportConfig.type === 'attendance' && (
-                        <td className="border border-gray-300 p-2 font-bold text-center">{monthAttendanceCount}</td>
+                        <td className="border border-gray-300 p-2 font-bold text-center align-top">{monthAttendanceCount}</td>
                     )}
 
                     {reportConfig.type === 'academic' && (
                         <>
-                          <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B]">{s.examResult ? s.examResult : '-'}</td>
-                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px]">
-                            {s.status === 'completed' ? <span className="text-green-700">ያጠናቀቀ</span> : s.status === 'dropped' ? <span className="text-red-700">ያቋረጠ</span> : <span className="text-blue-700">በመማር ላይ</span>}
+                          <td className="border border-gray-300 p-2 align-top">
+                             {insts.map(inst => {
+                                 const ks = s.kignit_scores || kignitScores[s.id] || {};
+                                 let details = '-';
+                                 if (inst === 'በገና') {
+                                     details = `ሰላ: ${ks[`${inst}_selamta`]||0}, ዋኔ: ${ks[`${inst}_wanen`]||0}, ቸር: ${ks[`${inst}_silechernetih`]||0}`;
+                                 } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
+                                     details = `ትዝ: ${ks[`${inst}_tizita`]||0}, አን: ${ks[`${inst}_anchihoye`]||0}, ባቲ: ${ks[`${inst}_bati_minor`]||0}, አም: ${ks[`${inst}_ambasel`]||0}`;
+                                 } else {
+                                     details = `ውጤት: ${s.examResult || 0}`;
+                                 }
+                                 return <div key={inst} className="text-[10px] mb-1 pb-1 text-gray-600">{details}</div>
+                             })}
+                          </td>
+                          <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">
+                             {insts.map(inst => {
+                                 const ks = s.kignit_scores || kignitScores[s.id] || {};
+                                 let total = 0;
+                                 if (inst === 'በገና') {
+                                     total = (Number(ks[`${inst}_selamta`])||0) + (Number(ks[`${inst}_wanen`])||0) + (Number(ks[`${inst}_silechernetih`])||0);
+                                 } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
+                                     total = (Number(ks[`${inst}_tizita`])||0) + (Number(ks[`${inst}_anchihoye`])||0) + (Number(ks[`${inst}_bati_minor`])||0) + (Number(ks[`${inst}_ambasel`])||0);
+                                 } else {
+                                     total = tempScores[s.id]?.[inst] || s.examResult || 0;
+                                 }
+                                 return <div key={inst} className="text-xs mb-1 pb-1">{total}</div>
+                             })}
+                          </td>
+                          <td className="border border-gray-300 p-2 text-center font-bold text-[10px] align-top">
+                             {insts.map(inst => {
+                                 const st = s.paymentDetails?.[inst]?.status || s.status;
+                                 return <div key={inst} className="mb-1 pb-1">
+                                     {st === 'completed' ? <span className="text-green-700">ያጠናቀቀ</span> : st === 'dropped' ? <span className="text-red-700">ያቋረጠ</span> : <span className="text-blue-700">በመማር ላይ</span>}
+                                 </div>
+                             })}
                           </td>
                         </>
                     )}
