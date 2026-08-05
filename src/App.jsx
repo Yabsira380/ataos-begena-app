@@ -63,10 +63,14 @@ const formatEthDate = (dateStr) => {
   return `${eth.month} ${eth.day}፣ ${eth.year}`;
 };
 
+const getTodayString = () => {
+  return new Date().toISOString().split('T')[0];
+};
+
 // ---------------- የክፍያ ወር እና የመመዝገቢያ ወር ማወዳደሪያ ----------------
-const isEligibleForPaymentPeriod = (studentRegDateStr, selYearStr, selMonthStr) => {
-  if (!studentRegDateStr) return true;
-  const regDate = new Date(studentRegDateStr);
+const isEligibleForPaymentPeriod = (regDateStr, selYearStr, selMonthStr) => {
+  if (!regDateStr) return true;
+  const regDate = new Date(regDateStr);
   if (isNaN(regDate.getTime())) return true;
   const regEth = getEthiopianDate(regDate);
   
@@ -97,8 +101,11 @@ const getDueDayForMonth = (student, cY, cMIdx, inst) => {
     let regMonthIdx = 0;
     let regDay = 1;
 
-    if (student.registrationDate) {
-        const eth = getEthiopianDate(new Date(student.registrationDate));
+    // ለስሌቱ የመሳሪያውን የጀመረበትን ቀን ይጠቀማል (ከሌለ አጠቃላይ የምዝገባ ቀኑን)
+    const instStartDate = student.paymentDetails?.[inst]?.startDate || student.registrationDate;
+
+    if (instStartDate) {
+        const eth = getEthiopianDate(new Date(instStartDate));
         regYear = parseInt(eth.year, 10);
         regMonthIdx = ethiopianMonths.indexOf(eth.month);
         regDay = parseInt(eth.day, 10);
@@ -124,14 +131,16 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr, inst) => {
     const cY = parseInt(targetYearStr, 10);
     const cMIdx = ethiopianMonths.indexOf(targetMonthStr);
 
-    if (!isEligibleForPaymentPeriod(student.registrationDate, targetYearStr, targetMonthStr)) {
+    const instStartDate = student.paymentDetails?.[inst]?.startDate || student.registrationDate;
+
+    // የመሳሪያውን የጀመረበትን ቀን ተጠቅሞ ታሪኩ መታየት እንዳለበት ያረጋግጣል
+    if (!isEligibleForPaymentPeriod(instStartDate, targetYearStr, targetMonthStr)) {
         return 'NOT_ELIGIBLE';
     }
 
     const key = `${targetYearStr}_${targetMonthStr}_${inst}`;
     const legacyKey = `${targetYearStr}_${targetMonthStr}`; 
     
-    // የተስተካከለ ቶግል ስሌት
     let isPaid = false;
     if (student.payments) {
         if (student.payments[key] !== undefined) {
@@ -334,15 +343,11 @@ export default function App() {
     statusFilter: 'all'
   });
 
-  const getTodayString = () => {
-    return new Date().toISOString().split('T')[0];
-  };
-
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', 
     instrumentType: ['በገና'], 
-    paymentDetails: { 'በገና': { amount: '', date: '', isFree: false } },
+    paymentDetails: { 'በገና': { amount: '', date: '', startDate: getTodayString(), isFree: false } },
     duration: '3 ወር', chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
@@ -358,9 +363,13 @@ export default function App() {
         const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
         if (amt <= 0) continue;
 
+        const instStartDate = student.paymentDetails?.[inst]?.startDate || student.registrationDate;
+        
         let instUnpaidCount = 0;
         for (const y of ethiopianYears) {
             for (const m of ethiopianMonths) {
+                if (!isEligibleForPaymentPeriod(instStartDate, y, m)) continue;
+
                 const status = getPaymentStatus(student, y, m, inst);
                 if (status === 'UNPAID') {
                     unpaidDetails.push(`${y}_${m}_${inst}`);
@@ -519,7 +528,7 @@ export default function App() {
     const insts = parseInstruments(student.instrumentType);
     const pDetails = student.paymentDetails || {};
     insts.forEach(i => {
-       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', isFree: false };
+       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', startDate: student.registrationDate || getTodayString(), isFree: false };
     });
 
     setEditFormData({
@@ -854,6 +863,7 @@ export default function App() {
     const student = students.find(s => s.id === selectedStudentForHistory.id) || selectedStudentForHistory;
     const insts = parseInstruments(student.instrumentType);
     const activeInst = historyInstTab && insts.includes(historyInstTab) ? historyInstTab : insts[0];
+    const instStartDate = student.paymentDetails?.[activeInst]?.startDate || student.registrationDate;
     
     const historyList = [];
     const tYInt = parseInt(todayEthGlobal.year, 10);
@@ -861,7 +871,7 @@ export default function App() {
 
     for (const y of ethiopianYears) {
       for (const m of ethiopianMonths) {
-        if (isEligibleForPaymentPeriod(student.registrationDate, y, m)) {
+        if (isEligibleForPaymentPeriod(instStartDate, y, m)) {
           const yInt = parseInt(y, 10);
           const mIdx = ethiopianMonths.indexOf(m);
           
@@ -901,14 +911,16 @@ export default function App() {
           <div className="p-4 bg-amber-50/50 border-b border-[#EADDCA] flex-shrink-0">
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
+                <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የ {activeInst} የጀመረበት ቀን፦</span>
+                <span className="font-black text-[#3E2723]">{formatEthDate(instStartDate)}</span>
+              </div>
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
                 <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
                 <span className="font-black text-[#8B5A2B]">{student.paymentDetails?.[activeInst]?.date ? `በየወሩ ${student.paymentDetails[activeInst].date} ቀን` : `(ያልተሞላ)`}</span>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm flex justify-between items-center">
-                <div>
-                   <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የ {activeInst} መጠን፦</span>
-                   <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || student.paymentAmount || 0} ብር`}</span>
-                </div>
+              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm col-span-2 flex justify-between items-center">
+                <span className="text-[10px] text-gray-500 font-bold block">ወርሃዊ መዋጮ መጠን፦</span>
+                <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || student.paymentAmount || 0} ብር`}</span>
               </div>
             </div>
           </div>
@@ -928,7 +940,7 @@ export default function App() {
               }
               
               const statusColor = isPaid ? 'bg-green-100 text-[#2E7D32] border-green-400 hover:bg-green-200' :
-                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200' :
+                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-100 text-yellow-700 border-yellow-400 hover:bg-yellow-200' :
                   'bg-red-100 text-red-700 border-red-300 hover:bg-red-200');
                   
               const iconColor = isPaid ? 'bg-green-50 border-green-300 text-green-700' :
@@ -955,7 +967,7 @@ export default function App() {
                      ) : (
                        <button 
                          onClick={() => handleTogglePaymentWithConfirm(student, item.key, activeInst)}
-                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 border ${statusColor}`}
+                         className={`px-3 py-2 rounded-xl text-[10px] font-black transition-all shadow-sm flex items-center gap-1 border ${statusColor}`}
                        >
                          {isPaid ? <><CheckCircle size={12}/> ከፍሏል</> : <><XCircle size={12}/> አልከፈለም</>}
                        </button>
@@ -1142,14 +1154,14 @@ export default function App() {
 
                             if (e.target.checked) {
                                 currentInsts.push(inst);
-                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', isFree: false };
+                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
                             } else {
                                 currentInsts = currentInsts.filter(i => i !== inst);
                                 delete currentDetails[inst];
                             }
                             if(currentInsts.length === 0) {
                                 currentInsts.push('በገና');
-                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
+                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
                             }
 
                             setEditFormData({...editFormData, instrument_type: currentInsts, paymentDetails: currentDetails});
@@ -1186,7 +1198,7 @@ export default function App() {
                              <span>ነፃ</span>
                            </label>
                          </div>
-                         <div className="grid grid-cols-2 gap-2">
+                         <div className="grid grid-cols-2 gap-2 mb-2">
                            {!editFormData.paymentDetails?.[inst]?.isFree ? (
                              <input type="number" placeholder="መጠን" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
                                onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], amount: e.target.value}}})} 
@@ -1199,6 +1211,12 @@ export default function App() {
                              disabled={editFormData.paymentDetails?.[inst]?.isFree} 
                              className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
                          </div>
+                         <div>
+                            <label className="text-[9px] font-bold text-[#5C4033] block mb-1">የጀመረበት ቀን</label>
+                            <input type="date" value={editFormData.paymentDetails?.[inst]?.startDate || editFormData.registration_date} 
+                               onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], startDate: e.target.value}}})} 
+                               className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                         </div>
                       </div>
                    ))}
                    <div className="bg-white mt-1 p-2 rounded-lg border border-[#D2B48C] flex justify-between items-center text-[10px]">
@@ -1209,7 +1227,7 @@ export default function App() {
 
                 <div className="mt-2">
                    <label className="text-[10px] font-black text-[#5C4033] block mb-1 flex items-center">
-                     የተመዘገቡበት ቀን 
+                     የተመዘገቡበት (የመጀመሪያ) ቀን 
                      <span className="text-[#8B5A2B] ml-2 text-[9px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
                    </label>
                    <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
@@ -1298,11 +1316,14 @@ export default function App() {
                           const detail = updatedStudentObj.paymentDetails?.[inst] || {};
                           return (
                              <div key={inst} className="flex justify-between items-center bg-gray-50 p-1.5 rounded border border-gray-200 text-[10px]">
-                                <span className="font-bold text-[#3E2723]">የ {inst} ክፍያ</span>
+                                <div>
+                                  <span className="font-bold text-[#3E2723]">የ {inst} ክፍያ</span>
+                                  <span className="text-gray-500 text-[9px] block">ጀምሯል፡ {formatEthDate(detail.startDate || updatedStudentObj.registrationDate)}</span>
+                                </div>
                                 {detail.isFree ? (
                                    <span className="text-blue-600 font-black bg-blue-100 px-1 rounded">ነፃ</span>
                                 ) : (
-                                   <span className="text-[#8B5A2B] font-bold">{detail.amount || updatedStudentObj.paymentAmount || 0} ብር <span className="text-gray-500 text-[9px]">(ቀን {detail.date || '-'})</span></span>
+                                   <span className="text-[#8B5A2B] font-bold text-right">{detail.amount || updatedStudentObj.paymentAmount || 0} ብር <br/><span className="text-gray-500 text-[9px]">(ቀን {detail.date || '-'})</span></span>
                                 )}
                              </div>
                           )
@@ -1483,7 +1504,7 @@ export default function App() {
           <div className="space-y-3">
             <div className="bg-amber-50/60 p-3 rounded-2xl border border-[#D2B48C] mb-2">
               <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1 flex items-center">
-                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
+                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን (የመጀመሪያ) ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
               </label>
               <input 
                 type="date" 
@@ -1543,14 +1564,14 @@ export default function App() {
 
                         if (e.target.checked) {
                             currentInsts.push(inst);
-                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', isFree: false };
+                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
                         } else {
                             currentInsts = currentInsts.filter(i => i !== inst);
                             delete currentDetails[inst];
                         }
                         if(currentInsts.length === 0) {
                             currentInsts.push('በገና'); // ቢያንስ አንድ መመረጥ አለበት
-                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
+                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false };
                         }
 
                         setNewStudent({...newStudent, instrumentType: currentInsts, paymentDetails: currentDetails});
@@ -1594,7 +1615,7 @@ export default function App() {
                         <span>ነፃ (Scholarship)</span>
                       </label>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 mb-2">
                        {!newStudent.paymentDetails?.[inst]?.isFree ? (
                           <input type="number" placeholder="መጠን (ብር)" value={newStudent.paymentDetails?.[inst]?.amount || ''}
                              onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], amount: e.target.value}}})}
@@ -1606,6 +1627,12 @@ export default function App() {
                           onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], date: e.target.value}}})}
                           disabled={newStudent.paymentDetails?.[inst]?.isFree}
                           className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                    </div>
+                    <div>
+                       <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">የጀመረበት ቀን</label>
+                       <input type="date" value={newStudent.paymentDetails?.[inst]?.startDate || newStudent.registrationDate}
+                          onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], startDate: e.target.value}}})}
+                          className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
                     </div>
                  </div>
               ))}
@@ -1920,7 +1947,6 @@ export default function App() {
     );
   };
 
-  // 2. የክፍያ ገፅ አቀማመጥ እና የካርድ ምልክት ቀለማት በትክክል እንደ ኦሪጅናል ተመልሰዋል
   const renderPaymentsView = () => {
     let filteredPaymentStudents = activeStudents.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
 
@@ -1949,13 +1975,13 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors"><Printer size={14} /> ሪፖርት</button>
         </div>
 
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
+        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1 shadow-sm">
           <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({activeStudents.length})</button>
           <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ</button>
           <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
+        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3 shadow-sm">
           <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓመተ ምሕረት፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
           <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> የዕለት ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
@@ -1969,7 +1995,7 @@ export default function App() {
           {filteredPaymentStudents.map(student => {
             const insts = parseInstruments(student.instrumentType);
             
-            // የካርድ ምልክት (Icon) ዋና ቀለም ስሌት
+            // 2. የተሻሻለ፦ የካርድ ምልክት ዋና ቀለም ስሌት
             let isAnyUnpaid = false;
             let isAllPaidOrScholar = true;
 
@@ -1979,24 +2005,26 @@ export default function App() {
                 if (st !== 'PAID' && st !== 'SCHOLARSHIP') isAllPaidOrScholar = false;
             });
 
+            // ቀይ ካለ ቀይ ያበራል፣ አለበለዚያ ሁሉም ከተከፈለ አረንጓዴ፣ አለበለዚያ ቢጫ (ክፍያ ያልደረሰ)
             const iconBgClass = isAnyUnpaid ? 'bg-red-50 border-red-300 text-red-600' :
                                 isAllPaidOrScholar ? 'bg-green-50 border-green-300 text-green-600' :
                                 'bg-yellow-50 border-yellow-300 text-yellow-600';
             
             return (
-              <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
-                <div className="flex items-center justify-between w-full">
+              <div key={student.id} className="flex flex-col p-5 bg-white rounded-3xl shadow-md border-[3px] border-[#D4AF37]/50 hover:border-[#8B5A2B] transition-all">
+                <div className="flex items-center justify-between w-full mb-1">
+                  
                   <div 
                     onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
+                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 -ml-2 rounded-2xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${iconBgClass}`}>
-                      <CreditCard size={20} />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${iconBgClass}`}>
+                      <CreditCard size={24} />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
-                        {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
+                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1.5">
+                        {student.name} <History size={14} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
                       <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
                         {insts.join('፣ ')} <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[9px] ml-1">#{student.studentNo}</span>
@@ -2005,13 +2033,31 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* 3. በተን ዲዛይን እና ቀለማት ወደ ኦሪጅናል ተመልሷል */}
-                <div className="space-y-2 mt-2 border-t border-gray-100 pt-3">
+                {/* 1. የተሻሻለ፦ በሚያምር እና ወፈር ባለ መስመር ተቀይሯል */}
+                <div className="space-y-3 border-t-4 border-[#8B5A2B]/20 pt-4 mt-2 rounded-t-sm">
                   {insts.map(inst => {
                      const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
                      const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
                      const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
                      
+                     // 3. የተሻሻለ፦ በኦሪጅናል ዲዛይኑ መሰረት አረንጓዴ፣ ቀይ እና ቢጫ
+                     let btnClass = '';
+                     let btnText = '';
+
+                     if (status === 'SCHOLARSHIP') {
+                        btnClass = 'bg-blue-100 text-blue-800 border-blue-400';
+                        btnText = 'ነፃ ተማሪ';
+                     } else if (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') {
+                        btnClass = 'bg-yellow-100 text-yellow-800 border-yellow-400 hover:bg-yellow-200';
+                        btnText = 'ገና አልደረሰም';
+                     } else if (status === 'PAID') {
+                        btnClass = 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200';
+                        btnText = 'ከፍሏል ✓';
+                     } else {
+                        btnClass = 'bg-red-100 text-red-800 border-red-400 hover:bg-red-200';
+                        btnText = 'አልከፈለም ✗';
+                     }
+
                      return (
                         <div key={inst} className="flex justify-between items-center bg-white p-1">
                            <div>
@@ -2022,12 +2068,10 @@ export default function App() {
                            </div>
                            
                            {status === 'SCHOLARSHIP' ? (
-                             <span className="px-3 py-1 text-[10px] font-bold rounded-xl bg-blue-100 text-blue-700 border border-blue-300">ነፃ</span>
-                           ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className="px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all shadow-sm bg-yellow-50 text-yellow-700 border border-yellow-300 hover:bg-yellow-100">ገና አልደረሰም</button>
+                             <span className={`px-3 py-1.5 text-[9px] font-black rounded-lg border shadow-sm ${btnClass}`}>ነፃ ተማሪ</span>
                            ) : (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[10px] font-bold rounded-xl transition-all shadow-sm flex items-center gap-1 ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400 hover:bg-green-200' : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'}`}>
-                                {status === 'PAID' ? <><CheckCircle size={12}/> ከፍሏል</> : <><XCircle size={12}/> አልከፈለም</>}
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[9px] font-black rounded-lg border shadow-sm transition-colors active:scale-95 ${btnClass}`}>
+                                {btnText}
                              </button>
                            )}
                         </div>
@@ -2037,7 +2081,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-8 font-bold bg-white rounded-2xl border border-[#D2B48C]"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
