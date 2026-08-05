@@ -145,6 +145,13 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr) => {
     return 'UNPAID';
 };
 
+// --- የመሳሪያ ስሞችን ወደ አሬይ (Array) የሚቀይር አጋዥ ፈንክሽን ---
+const parseInstruments = (instData) => {
+  if (!instData) return ['በገና'];
+  if (Array.isArray(instData)) return instData.length > 0 ? instData : ['በገና'];
+  return String(instData).split(',').map(s => s.trim()).filter(Boolean);
+};
+
 // --- Custom Spiritual Icons & SVG ---
 const EthiopianCross = ({ className = "w-6 h-6" }) => (
   <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -305,7 +312,6 @@ export default function App() {
     return new Date().toISOString().split('T')[0];
   };
 
-  // 1. መነሻ ስቴት፦ ከአንድ በላይ መሳሪያ መምረጥ እንዲቻል instrumentType እንደ Array ተዘጋጅቷል
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', instrumentType: ['በገና'], duration: '3 ወር',
@@ -471,7 +477,6 @@ export default function App() {
     return String(maxNo === -Infinity ? 1 : maxNo + 1).padStart(3, '0');
   };
 
-  // 3. ፕሮፋይል ማስተካከያ ስቴት፦ መሳሪያዎችን እንደ Array ይለያቸዋል
   const startEditingProfile = (student) => {
     setEditFormData({
       name: student.name,
@@ -482,7 +487,7 @@ export default function App() {
       work_status: student.workStatus || 'ተማሪ',
       church_service: student.churchService || '',
       parish: student.parish || '',
-      instrument_type: student.instrumentType ? student.instrumentType.split(',').map(s=>s.trim()) : ['በገና'],
+      instrument_type: parseInstruments(student.instrumentType),
       duration: student.duration || '3 ወር',
       chosen_day: student.chosenDay || '',
       chosen_time: student.chosenTime || '',
@@ -565,7 +570,6 @@ export default function App() {
     });
   };
 
-  // 2. ተማሪ መመዝገቢያ፦ የተመረጡትን ብዙ መሳሪያዎች በኮማ (`, `) አያይዞ ዳታቤዝ ያስገባል
   const handleAddStudentSubmit = (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
@@ -974,8 +978,8 @@ export default function App() {
     const attendanceData = updatedStudentObj.attendance?.[currentPeriodKey] || {};
     const daysPresent = Object.values(attendanceData).filter(Boolean).length;
     
-    // የተማሪውን መሳሪያዎች ለይቶ ማውጣት
-    const studentInstruments = updatedStudentObj.instrumentType ? updatedStudentObj.instrumentType.split(',').map(s=>s.trim()) : [];
+    // የተማሪውን መሳሪያዎች ለይቶ ማውጣት (በአዲሱ አጋዥ ፈንክሽን)
+    const studentInstruments = parseInstruments(updatedStudentObj.instrumentType);
     const studentLessons = lessons.filter(l => studentInstruments.includes(l.instrument)).sort((a, b) => a.id - b.id);
     const studentArrearsInfo = getUnpaidMonthsInfo(updatedStudentObj);
 
@@ -1039,7 +1043,6 @@ export default function App() {
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">አገልግሎት ክፍል</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/></div>
                 </div>
                 
-                {/* ማስተካከያ፦ ከአንድ በላይ የዜማ መሳሪያ መምረጫ checkboxes */}
                 <div>
                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)</label>
                   <div className="flex flex-wrap gap-2 border border-[#D2B48C] p-2 rounded-lg bg-white">
@@ -1170,7 +1173,7 @@ export default function App() {
               <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
                 <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><BookOpen size={14} className="mr-1"/> የትምህርት እና ክፍያ መረጃ </h4>
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                  <div><p className="text-gray-500 mb-0.5"> የመሳሪያ አይነት </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-0.5 rounded">{updatedStudentObj.instrumentType || '-'}</p></div>
+                  <div className="col-span-2 mb-2"><p className="text-gray-500 mb-0.5"> የተመዘገቡባቸው መሳሪያዎች </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-1 rounded">{studentInstruments.join('፣ ')}</p></div>
                   <div><p className="text-gray-500 mb-0.5"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
                   <div className="col-span-2">
                     <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
@@ -1216,7 +1219,7 @@ export default function App() {
                       const isCompleted = updatedStudentObj.lesson_progress?.[lesson.id];
                       return (
                         <div key={lesson.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
-                          <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={12}/ scheme>}</button>
+                          <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={12}/>}</button>
                           <div><p className={`text-[11px] font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title} ({lesson.instrument})</p><p className={`text-[9px] mt-0.5 ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p></div>
                         </div>
                       )
@@ -1405,7 +1408,6 @@ export default function App() {
           <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><BookOpen size={16} className="mr-2 text-[#8B5A2B]"/> የዜማ ትምህርት ምርጫ </h3>
           <div className="space-y-4">
             
-            {/* 2. የተሻሻለ፦ ከአንድ በላይ የዜማ መሳሪያ መምረጫ Checkboxes */}
             <div>
               <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center">
                 <Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)
@@ -1539,9 +1541,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 3. የተሻሻለ፦ ከአንድ በላይ መሳሪያ ላላቸው ተማሪዎች የውጤት መሙያ ቦክስ በየመሳሪያቸው ተዘጋጅቶ ያሳያል */}
               <div className="flex flex-col gap-3 w-full">
-                {(student.instrumentType ? student.instrumentType.split(',').map(s=>s.trim()) : ['በገና']).map(inst => {
+                {parseInstruments(student.instrumentType).map(inst => {
                    return (
                      <div key={inst} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                         {inst === 'በገና' ? (
@@ -2152,7 +2153,7 @@ export default function App() {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-5px); }
         }
-        .animate-[#bounceSubtle] { animation: bounceSubtle 2s infinite ease-in-out; }
+        .animate-bounce-subtle { animation: bounceSubtle 2s infinite ease-in-out; }
         
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
