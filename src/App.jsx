@@ -129,7 +129,7 @@ const getPaymentStatus = (student, targetYearStr, targetMonthStr, inst) => {
     }
 
     const key = `${targetYearStr}_${targetMonthStr}_${inst}`;
-    const legacyKey = `${targetYearStr}_${targetMonthStr}`; // ለድሮ የተመዘገቡ መረጃዎች እንዳይበላሹ
+    const legacyKey = `${targetYearStr}_${targetMonthStr}`; 
     
     if (student.payments && (student.payments[key] || student.payments[legacyKey])) {
         return 'PAID';
@@ -856,53 +856,62 @@ export default function App() {
           
           <div className="bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-4 flex items-center justify-between border-b-4 border-[#D4AF37] relative z-10 flex-shrink-0">
             <div className="flex items-center gap-2">
-              <div className="bg-[#D4AF37] p-1.5 rounded-lg"><History size={18} className="text-[#3E2723]" /></div>
+              <div className="bg-[#D4AF37] p-2 rounded-lg"><History size={20} className="text-[#3E2723]" /></div>
               <div>
-                <h3 className="font-extrabold text-sm font-serif text-[#FFF8E7]">የክፍያ ታሪክ ማስተካከያ</h3>
-                <p className="text-[10px] text-gray-300 font-bold">{student.name} (#{student.studentNo})</p>
+                <h3 className="font-black text-base font-serif text-[#FFF8E7]">የክፍያ ታሪክ ማስተካከያ</h3>
+                <p className="text-xs text-gray-300 font-bold">{student.name} (#{student.studentNo})</p>
               </div>
             </div>
-            <button onClick={() => { setSelectedStudentForHistory(null); setHistoryInstTab(null); }} className="p-2 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={18} /></button>
+            <button onClick={() => { setSelectedStudentForHistory(null); setHistoryInstTab(null); }} className="p-2 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={20} /></button>
           </div>
 
-          <div className="bg-white border-b border-[#EADDCA] p-2 flex gap-2 overflow-x-auto hide-scrollbar flex-shrink-0">
+          <div className="bg-white border-b border-[#EADDCA] p-3 flex gap-2 overflow-x-auto hide-scrollbar flex-shrink-0 shadow-sm">
              {insts.map(inst => (
-                <button key={inst} onClick={() => setHistoryInstTab(inst)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${activeInst === inst ? 'bg-[#8B5A2B] text-white shadow-sm' : 'bg-gray-100 text-[#5C4033] hover:bg-gray-200'}`}>
+                <button key={inst} onClick={() => setHistoryInstTab(inst)} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-colors whitespace-nowrap ${activeInst === inst ? 'bg-[#8B5A2B] text-white shadow-md' : 'bg-gray-100 text-[#5C4033] border border-gray-200 hover:bg-gray-200'}`}>
                    የ {inst} ታሪክ
                 </button>
              ))}
           </div>
 
           <div className="p-4 bg-amber-50/50 border-b border-[#EADDCA] flex-shrink-0">
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm">
-                <span className="text-[9px] text-gray-500 font-bold block mb-0.5">ወርሃዊ መክፈያ ቀን፦</span>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-white p-3 rounded-xl border border-[#D2B48C] shadow-sm">
+                <span className="text-[11px] text-gray-500 font-bold block mb-1">ወርሃዊ መክፈያ ቀን፦</span>
                 <span className="font-black text-[#8B5A2B]">{student.paymentDetails?.[activeInst]?.date ? `በየወሩ ${student.paymentDetails[activeInst].date} ቀን` : `(ያልተሞላ)`}</span>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-[#D2B48C] shadow-sm flex justify-between items-center">
+              <div className="bg-white p-3 rounded-xl border border-[#D2B48C] shadow-sm flex justify-between items-center">
                 <div>
-                   <span className="text-[9px] text-gray-500 font-bold block mb-0.5">የ {activeInst} መጠን፦</span>
-                   <span className="font-black text-[#3E2723] text-sm">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || 0} ብር`}</span>
+                   <span className="text-[11px] text-gray-500 font-bold block mb-1">የ {activeInst} መጠን፦</span>
+                   <span className="font-black text-[#3E2723] text-base">{student.paymentDetails?.[activeInst]?.isFree ? 'ነፃ' : `${student.paymentDetails?.[activeInst]?.amount || 0} ብር`}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {historyList.map((item) => {
               const fullKey = `${item.key}_${activeInst}`;
               const legacyKey = item.key;
               const isPaid = student.payments?.[fullKey] || student.payments?.[legacyKey] || false;
               
+              // 2. የተሻሻለ፦ የክፍያ ታሪክ ቀለማት
+              const statusColor = isPaid ? 'bg-green-100 text-green-800 border-green-400' :
+                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-100 text-yellow-800 border-yellow-400' :
+                  'bg-red-100 text-red-800 border-red-400');
+                  
+              const iconColor = isPaid ? 'bg-green-50 border-green-300 text-green-700' :
+                  (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
+                  'bg-red-50 border-red-300 text-red-700');
+              
               return (
-                <div key={item.key} className="bg-white rounded-2xl p-3 border-2 border-[#EADDCA] shadow-sm flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold text-xs ${isPaid ? 'bg-green-50 border-green-300 text-green-700' : (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? 'bg-gray-50 border-gray-300 text-gray-500' : 'bg-red-50 border-red-300 text-red-700')}`}>
+                <div key={item.key} className="bg-white rounded-2xl p-4 border-2 border-[#EADDCA] shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border-2 font-black text-sm ${iconColor}`}>
                       {item.month.substring(0, 3)}
                     </div>
                     <div>
-                      <h4 className="font-extrabold text-[#3E2723] text-sm">{item.month} {item.year}</h4>
-                      <p className="text-[9px] text-gray-500 font-bold mt-0.5">
+                      <h4 className="font-black text-[#3E2723] text-sm sm:text-base">{item.month} {item.year}</h4>
+                      <p className="text-xs text-gray-500 font-bold mt-1">
                         {isPaid ? 'ተከፍሏል' : item.status === 'SCHOLARSHIP' ? 'ነፃ' : (item.status === 'CURRENT_NOT_DUE' || item.status === 'FUTURE_NOT_DUE' ? `ገና አልደረሰም (ቀን ${item.exactDueDay})` : `ዕዳ (ቀን ${item.exactDueDay})`)}
                       </p>
                     </div>
@@ -910,13 +919,13 @@ export default function App() {
                   
                   <div>
                      {item.status === 'SCHOLARSHIP' ? (
-                       <span className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-[10px] font-black">ነፃ</span>
+                       <span className="bg-blue-100 text-blue-800 px-4 py-2 rounded-xl text-xs font-black border border-blue-400">ነፃ ተማሪ</span>
                      ) : (
                        <button 
                          onClick={() => handleTogglePaymentWithConfirm(student, item.key, activeInst)}
-                         className={`px-3 py-2 rounded-xl text-[10px] font-black transition-all shadow-sm flex items-center gap-1 ${isPaid ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200' : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'}`}
+                         className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 border hover:scale-105 active:scale-95 ${statusColor}`}
                        >
-                         {isPaid ? <><CheckCircle size={12}/> ከፍሏል</> : <><XCircle size={12}/> አልከፈለም</>}
+                         {isPaid ? <><CheckCircle size={14}/> ከፍሏል</> : <><XCircle size={14}/> አልከፈለም</>}
                        </button>
                      )}
                   </div>
@@ -924,7 +933,7 @@ export default function App() {
               );
             })}
             {historyList.length === 0 && (
-              <div className="text-center py-8 text-gray-400 font-bold text-xs">
+              <div className="text-center py-8 text-gray-400 font-bold text-sm">
                 <p>የክፍያ ታሪክ የለም።</p>
               </div>
             )}
@@ -1070,27 +1079,27 @@ export default function App() {
 
           {isEditingProfile ? (
             <div className="p-5 bg-[#FAF6EE]">
-              <h3 className="font-extrabold text-[#8B5A2B] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-xs flex items-center"><Edit size={14} className="mr-1.5"/> የተማሪ መረጃ ማስተካከያ </h3>
-              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 pb-2">
-                <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.name} onChange={e=>setEditFormData({...editFormData, name: e.target.value})}/></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የክርስትና ስም</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.christian_name} onChange={e=>setEditFormData({...editFormData, christian_name: e.target.value})}/></div>
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">ስልክ ቁጥር <span className="text-red-500">*</span></label><input type="tel" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.phone} onChange={e=>setEditFormData({...editFormData, phone: e.target.value})}/></div>
+              <h3 className="font-extrabold text-[#8B5A2B] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><Edit size={16} className="mr-2"/> የተማሪ መረጃ ማስተካከያ </h3>
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 pb-2">
+                <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.name} onChange={e=>setEditFormData({...editFormData, name: e.target.value})}/></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የክርስትና ስም</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.christian_name} onChange={e=>setEditFormData({...editFormData, christian_name: e.target.value})}/></div>
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">ስልክ ቁጥር <span className="text-red-500">*</span></label><input type="tel" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.phone} onChange={e=>setEditFormData({...editFormData, phone: e.target.value})}/></div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የቅርብ ተጠሪ ስም</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_name} onChange={e=>setEditFormData({...editFormData, emergency_contact_name: e.target.value})}/></div>
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የቅርብ ተጠሪ ስልክ</label><input type="tel" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_phone} onChange={e=>setEditFormData({...editFormData, emergency_contact_phone: e.target.value})}/></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የቅርብ ተጠሪ ስም</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_name} onChange={e=>setEditFormData({...editFormData, emergency_contact_name: e.target.value})}/></div>
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የቅርብ ተጠሪ ስልክ</label><input type="tel" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.emergency_contact_phone} onChange={e=>setEditFormData({...editFormData, emergency_contact_phone: e.target.value})}/></div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመጡበት አጥቢያ</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.parish} onChange={e=>setEditFormData({...editFormData, parish: e.target.value})}/></div>
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">አገልግሎት ክፍል</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የመጡበት አጥቢያ</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.parish} onChange={e=>setEditFormData({...editFormData, parish: e.target.value})}/></div>
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">አገልግሎት ክፍል</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.church_service} onChange={e=>setEditFormData({...editFormData, church_service: e.target.value})}/></div>
                 </div>
                 
                 <div>
-                  <label className="text-[10px] font-black text-[#5C4033] block mb-1">የመሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)</label>
-                  <div className="flex flex-wrap gap-2 border border-[#D2B48C] p-2 rounded-lg bg-white">
+                  <label className="text-xs font-black text-[#5C4033] block mb-2">የመሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)</label>
+                  <div className="flex flex-wrap gap-3 border border-[#D2B48C] p-3 rounded-xl bg-white shadow-sm">
                     {instrumentsList.map(inst => (
-                      <label key={inst} className="flex items-center space-x-1 text-xs font-bold text-[#3E2723] cursor-pointer">
+                      <label key={inst} className="flex items-center space-x-1.5 text-sm font-bold text-[#3E2723] cursor-pointer">
                         <input 
                           type="checkbox" 
                           value={inst} 
@@ -1113,7 +1122,7 @@ export default function App() {
 
                             setEditFormData({...editFormData, instrument_type: currentInsts, paymentDetails: currentDetails});
                           }} 
-                          className="accent-[#8B5A2B]"
+                          className="accent-[#8B5A2B] w-4 h-4 rounded"
                         />
                         <span>{inst}</span>
                       </label>
@@ -1121,19 +1130,19 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የጊዜ ርቀት</label><select value={editFormData.duration} onChange={e=>setEditFormData({...editFormData, duration: e.target.value})} className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] bg-white focus:outline-none focus:border-[#8B5A2B]">{['3 ወር', '6 ወር', '9 ወር'].map(i => <option key={i} value={i}>{i}</option>)}</select></div>
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የጊዜ ርቀት</label><select value={editFormData.duration} onChange={e=>setEditFormData({...editFormData, duration: e.target.value})} className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] bg-white focus:outline-none focus:border-[#8B5A2B]">{['3 ወር', '6 ወር', '9 ወር'].map(i => <option key={i} value={i}>{i}</option>)}</select></div>
+                  <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
                 </div>
-                <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
+                <div><label className="text-xs font-black text-[#5C4033] block mb-1.5">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 
-                <div className="mt-2 border-t border-dashed border-[#D2B48C] pt-2">
-                   <p className="text-[10px] font-black text-[#8B5A2B] mb-2">የእያንዳንዱ መሳሪያ ክፍያ መረጃ ማስተካከያ፡</p>
+                <div className="mt-4 border-t-2 border-dashed border-[#D2B48C] pt-3">
+                   <p className="text-sm font-black text-[#8B5A2B] mb-3">የእያንዳንዱ መሳሪያ ክፍያ መረጃ፡</p>
                    {editFormData.instrument_type.map(inst => (
-                      <div key={inst} className="mb-3 p-2 bg-[#F9F6F0] rounded-lg border border-[#EADDCA]">
-                         <div className="flex justify-between items-center mb-1.5">
-                           <label className="text-[10px] font-bold text-[#5C4033]">የ {inst} መዋጮ (ብር)</label>
-                           <label className="flex items-center space-x-1 text-[9px] font-black text-blue-700 cursor-pointer bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      <div key={inst} className="mb-3 p-3 bg-white/80 rounded-xl border border-[#D2B48C] shadow-sm">
+                         <div className="flex justify-between items-center mb-2">
+                           <label className="text-xs font-bold text-[#5C4033]">የ {inst} መዋጮ (ብር)</label>
+                           <label className="flex items-center space-x-1.5 text-xs font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
                              <input type="checkbox" checked={editFormData.paymentDetails?.[inst]?.isFree || false} 
                                onChange={(e) => {
                                  const checked = e.target.checked;
@@ -1141,127 +1150,120 @@ export default function App() {
                                      ...editFormData,
                                      paymentDetails: { ...editFormData.paymentDetails, [inst]: { ...(editFormData.paymentDetails?.[inst] || {}), isFree: checked, amount: checked ? '0' : '' } }
                                  });
-                               }} className="accent-blue-600 w-3 h-3"/>
-                             <span>ነፃ</span>
+                               }} className="accent-blue-600 w-3.5 h-3.5"/>
+                             <span>ነፃ (Scholarship)</span>
                            </label>
                          </div>
-                         <div className="grid grid-cols-2 gap-2">
+                         <div className="grid grid-cols-2 gap-3">
                            {!editFormData.paymentDetails?.[inst]?.isFree ? (
-                             <input type="number" placeholder="መጠን (ምሳሌ፡ 500)" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
+                             <input type="number" placeholder="መጠን (ብር)" value={editFormData.paymentDetails?.[inst]?.amount || ''} 
                                onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], amount: e.target.value}}})} 
-                               className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                               className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold focus:outline-none focus:border-[#8B5A2B]"/>
                            ) : (
-                             <div className="w-full border border-gray-200 bg-gray-100 p-2 rounded-lg text-[10px] font-bold text-gray-500 flex items-center justify-center">ነፃ ተማሪ</div>
+                             <div className="w-full border border-gray-200 bg-gray-100 p-2.5 rounded-lg text-xs font-bold text-gray-500 flex items-center justify-center">ነፃ ተማሪ</div>
                            )}
                            <input type="number" min="1" max="30" placeholder="የክፍያ ቀን" value={editFormData.paymentDetails?.[inst]?.date || ''} 
                              onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], date: e.target.value}}})} 
                              disabled={editFormData.paymentDetails?.[inst]?.isFree} 
-                             className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                             className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold focus:outline-none focus:border-[#8B5A2B]"/>
                          </div>
                       </div>
                    ))}
-                   <div className="bg-white mt-1 p-2 rounded-lg border border-[#D2B48C] flex justify-between items-center text-[10px]">
-                      <span className="font-bold text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ፡</span>
+                   <div className="bg-[#FAF3E0] mt-2 p-3 rounded-xl border border-[#D2B48C] flex justify-between items-center text-sm shadow-inner">
+                      <span className="font-bold text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ (ድምር)፡</span>
                       <span className="font-black text-green-700">{calculateTotalAmount(editFormData.paymentDetails)} ብር</span>
                    </div>
                 </div>
 
-                <div className="mt-2">
-                   <label className="text-[10px] font-black text-[#5C4033] block mb-1 flex items-center">
+                <div className="mt-4">
+                   <label className="text-xs font-black text-[#5C4033] block mb-1.5 flex items-center">
                      የተመዘገቡበት ቀን 
-                     <span className="text-[#8B5A2B] ml-2 text-[9px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
+                     <span className="text-[#8B5A2B] ml-2 text-[10px]">(በኢትዮጵያ፦ {formatEthDate(editFormData.registration_date)})</span>
                    </label>
-                   <input type="date" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
+                   <input type="date" className="w-full border border-[#D2B48C] p-2.5 rounded-lg text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.registration_date} onChange={e=>setEditFormData({...editFormData, registration_date: e.target.value})}/>
                 </div>
 
-                <div>
-                   <label className="text-[10px] font-black text-[#5C4033] block mb-1">የስራ ሁኔታ</label>
-                   <div className="flex gap-4">
-                     <label className="flex items-center space-x-1.5 text-xs font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="editWorkStatus" value="ተማሪ" checked={editFormData.work_status === 'ተማሪ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B]"/><span>ተማሪ</span></label>
-                     <label className="flex items-center space-x-1.5 text-xs font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="editWorkStatus" value="ሰራተኛ" checked={editFormData.work_status === 'ሰራተኛ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B]"/><span>ሰራተኛ</span></label>
+                <div className="pt-2">
+                   <label className="text-xs font-black text-[#5C4033] block mb-2">የስራ ሁኔታ</label>
+                   <div className="flex gap-6">
+                     <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="editWorkStatus" value="ተማሪ" checked={editFormData.work_status === 'ተማሪ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B] w-4 h-4"/><span>ተማሪ</span></label>
+                     <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="editWorkStatus" value="ሰራተኛ" checked={editFormData.work_status === 'ሰራተኛ'} onChange={e=>setEditFormData({...editFormData, work_status: e.target.value})} className="accent-[#8B5A2B] w-4 h-4"/><span>ሰራተኛ</span></label>
                    </div>
                 </div>
               </div>
-              <div className="flex gap-3 pt-4 border-t-2 border-dashed border-[#D2B48C] mt-2">
-                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"><Save size={14}/> አስቀምጥ</button>
-                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-2.5 rounded-xl text-xs font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1"><X size={14}/> ተወው</button>
+              <div className="flex gap-3 pt-5 border-t-2 border-dashed border-[#D2B48C] mt-2">
+                <button onClick={() => saveProfileChanges(updatedStudentObj.id)} className="flex-1 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-3 rounded-xl text-sm font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"><Save size={16}/> አስቀምጥ</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white text-[#3E2723] py-3 rounded-xl text-sm font-bold transition-all border-2 border-[#D2B48C] shadow-sm active:scale-95 flex items-center justify-center gap-1.5"><X size={16}/> ተወው</button>
               </div>
             </div>
           ) : (
-            <div className="p-5 space-y-4">
-              <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm ${updatedStudentObj.status === 'completed' ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32]' : updatedStudentObj.status === 'dropped' ? 'bg-[#FFEBEE] border-[#EF9A9A] text-[#C62828]' : 'bg-[#E3F2FD] border-[#90CAF9] text-[#1565C0]'}`}>
-                <span className="font-bold text-xs">
+            <div className="p-5 space-y-5">
+              <div className={`p-4 rounded-xl border-2 flex items-center justify-between shadow-sm ${updatedStudentObj.status === 'completed' ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32]' : updatedStudentObj.status === 'dropped' ? 'bg-[#FFEBEE] border-[#EF9A9A] text-[#C62828]' : 'bg-[#E3F2FD] border-[#90CAF9] text-[#1565C0]'}`}>
+                <span className="font-black text-sm">
                   {updatedStudentObj.status === 'completed' ? <> ትምህርቱን ያጠናቀቀ </> : updatedStudentObj.status === 'dropped' ? <> ትምህርቱን ያቋረጠ </> : <> በመማር ላይ ያለ (Active)</>}
                 </span>
-                {updatedStudentObj.examResult && <span className="font-black text-xs"> ውጤት: {updatedStudentObj.examResult}%</span>}
-              </div>
-              <div className="bg-amber-50 rounded-2xl p-3 border border-[#EADDCA] text-xs flex justify-between items-center text-[#3E2723]">
-                <span className="font-bold flex items-center"><Calendar size={14} className="mr-1.5 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
-                <span className="font-black bg-white px-2.5 py-1 rounded-lg border border-[#EADDCA] shadow-sm">{formatEthDate(updatedStudentObj.registrationDate)}</span>
+                {updatedStudentObj.examResult && <span className="font-black text-sm"> ውጤት: {updatedStudentObj.examResult}%</span>}
               </div>
               
-              <div className="bg-white rounded-2xl p-4 border-2 border-[#EADDCA] shadow-sm relative">
-                <div className="absolute top-1 left-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
-                <div className="absolute top-1 right-1 opacity-15"><EthiopianCross className="w-5 h-5 text-[#8B5A2B]" /></div>
-                <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
-                  <div className="flex flex-col"><h4 className="text-xs font-extrabold text-[#3E2723] flex items-center"><Calendar size={14} className="mr-1 text-[#8B5A2B]"/> የ {selectedMonth} ወር መገኘት</h4><p className="text-[9px] text-[#8B5A2B]/80 italic mt-0.5 font-bold"> ማስተካከያ፦ ቀኑን በመንካት መገኘትን ይለውጡ </p></div>
-                  <span className="text-[10px] bg-[#FAF3E0] text-[#8B5A2B] px-2 py-0.5 rounded-full font-bold border border-[#D2B48C]">ድምር: {daysPresent} ቀን</span>
+              <div className="bg-amber-50 rounded-2xl p-4 border border-[#EADDCA] text-sm flex justify-between items-center text-[#3E2723]">
+                <span className="font-bold flex items-center"><Calendar size={16} className="mr-2 text-[#8B5A2B]" /> የተመዘገቡበት ቀን፦</span>
+                <span className="font-black bg-white px-3 py-1.5 rounded-lg border border-[#EADDCA] shadow-sm">{formatEthDate(updatedStudentObj.registrationDate)}</span>
+              </div>
+              
+              <div className="bg-white rounded-2xl p-5 border-2 border-[#EADDCA] shadow-sm relative">
+                <div className="absolute top-1 left-1 opacity-15"><EthiopianCross className="w-6 h-6 text-[#8B5A2B]" /></div>
+                <div className="absolute top-1 right-1 opacity-15"><EthiopianCross className="w-6 h-6 text-[#8B5A2B]" /></div>
+                <div className="flex justify-between items-center border-b border-[#EADDCA] pb-3 mb-4">
+                  <div className="flex flex-col"><h4 className="text-sm font-extrabold text-[#3E2723] flex items-center"><Calendar size={16} className="mr-1.5 text-[#8B5A2B]"/> የ {selectedMonth} ወር መገኘት</h4><p className="text-[10px] text-[#8B5A2B]/80 italic mt-1 font-bold"> ማስተካከያ፦ ቀኑን በመንካት መገኘትን ይለውጡ </p></div>
+                  <span className="text-xs bg-[#FAF3E0] text-[#8B5A2B] px-3 py-1 rounded-full font-bold border border-[#D2B48C]">ድምር: {daysPresent} ቀን</span>
                 </div>
-                <div className="grid grid-cols-7 gap-1.5 text-center pt-1">
+                <div className="grid grid-cols-7 gap-2 text-center pt-1">
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                     const isPresent = attendanceData[day];
                     return (
-                      <button key={day} onClick={() => handleCalendarDayClick(updatedStudentObj, day)} className={`flex flex-col items-center justify-center p-1.5 rounded-lg border-2 transition-all active:scale-95 ${isPresent ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32] hover:bg-green-100' : 'bg-[#FCFAF2] border-gray-200 text-gray-400 hover:bg-gray-100'}`}>
-                        <span className="text-[10px] font-extrabold leading-none">{day}</span>
-                        {isPresent ? <Check size={12} className="mt-1 text-green-700" strokeWidth={3}/> : <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5" />}
+                      <button key={day} onClick={() => handleCalendarDayClick(updatedStudentObj, day)} className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all active:scale-95 ${isPresent ? 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32] hover:bg-green-100' : 'bg-[#FCFAF2] border-gray-200 text-gray-400 hover:bg-gray-100'}`}>
+                        <span className="text-xs font-extrabold leading-none">{day}</span>
+                        {isPresent ? <Check size={14} className="mt-1.5 text-green-700" strokeWidth={3}/> : <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5" />}
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><User size={14} className="mr-1"/> የግል እና አድራሻ መረጃ </h4>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                  <div><p className="text-gray-500 mb-0.5"> የራስ ስልክ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.phone || '-'}</p></div>
-                  <div><p className="text-gray-500 mb-0.5"> የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
-                  <div className="col-span-2 bg-[#F9F6F0] p-2 rounded-lg border border-[#EADDCA]">
-                    <p className="text-gray-500 mb-0.5 flex items-center"><PhoneCall size={12} className="mr-1 text-[#8B5A2B]"/> የቅርብ ተጠሪ </p>
-                    <p className="font-bold text-[#3E2723]">{updatedStudentObj.emergencyContactName || '-'} <span className="text-[#8B5A2B]">({updatedStudentObj.emergencyContactPhone || '-'})</span></p>
+              <div className="bg-white rounded-2xl p-5 border border-[#EADDCA] shadow-sm">
+                <h4 className="text-sm font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-3 mb-4 flex items-center"><User size={16} className="mr-1.5"/> የግል እና አድራሻ መረጃ </h4>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-3 text-sm">
+                  <div><p className="text-gray-500 mb-1"> የራስ ስልክ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.phone || '-'}</p></div>
+                  <div><p className="text-gray-500 mb-1"> የስራ ሁኔታ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.workStatus || '-'}</p></div>
+                  <div className="col-span-2 bg-[#F9F6F0] p-3 rounded-xl border border-[#EADDCA]">
+                    <p className="text-gray-500 mb-1 flex items-center"><PhoneCall size={14} className="mr-1.5 text-[#8B5A2B]"/> የቅርብ ተጠሪ </p>
+                    <p className="font-bold text-[#3E2723] text-base">{updatedStudentObj.emergencyContactName || '-'} <span className="text-[#8B5A2B] text-sm">({updatedStudentObj.emergencyContactPhone || '-'})</span></p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><Church size={14} className="mr-1"/> መንፈሳዊ ህይወት መረጃ </h4>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                  <div><p className="text-gray-500 mb-0.5"> የመጡበት አጥቢያ </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.parish || '-'}</p></div>
-                  <div><p className="text-gray-500 mb-0.5"> አገልግሎት ክፍል </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.churchService || '-'}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm">
-                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><BookOpen size={14} className="mr-1"/> የትምህርት እና ክፍያ መረጃ </h4>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
-                  <div className="col-span-2 mb-2"><p className="text-gray-500 mb-0.5"> የተመዘገቡባቸው መሳሪያዎች </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-1 rounded">{studentInstruments.join('፣ ')}</p></div>
-                  <div><p className="text-gray-500 mb-0.5"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
+              <div className="bg-white rounded-2xl p-5 border border-[#EADDCA] shadow-sm">
+                <h4 className="text-sm font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-3 mb-4 flex items-center"><BookOpen size={16} className="mr-1.5"/> የትምህርት እና ክፍያ መረጃ </h4>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-3 text-sm">
+                  <div className="col-span-2 mb-1"><p className="text-gray-500 mb-1.5"> የተመዘገቡባቸው መሳሪያዎች </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-3 py-1.5 rounded-lg border border-[#D2B48C]">{studentInstruments.join('፣ ')}</p></div>
+                  <div><p className="text-gray-500 mb-1"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
                   <div className="col-span-2">
-                    <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
-                    <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
+                    <p className="text-gray-500 mb-1 flex items-center"><Clock size={14} className="mr-1.5"/> የተመረጠ ቀን እና ሰዓት </p>
+                    <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-2 text-gray-300">|</span> {updatedStudentObj.chosenTime || '-'}</p>
                   </div>
                   
-                  <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-[#EADDCA]">
-                    <p className="text-[10px] text-gray-500 mb-1.5 font-bold flex items-center"><Banknote size={12} className="mr-1"/> የክፍያ ዝርዝር መረጃ፡</p>
-                    <div className="space-y-1.5">
+                  <div className="col-span-2 mt-3 pt-3 border-t-2 border-dashed border-[#EADDCA]">
+                    <p className="text-xs text-gray-500 mb-2 font-black flex items-center"><Banknote size={14} className="mr-1.5"/> የክፍያ ዝርዝር መረጃ፡</p>
+                    <div className="space-y-2">
                       {studentInstruments.map(inst => {
                           const detail = updatedStudentObj.paymentDetails?.[inst] || {};
                           return (
-                             <div key={inst} className="flex justify-between items-center bg-gray-50 p-1.5 rounded border border-gray-200 text-[10px]">
-                                <span className="font-bold text-[#3E2723]">የ {inst} ክፍያ</span>
+                             <div key={inst} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border border-gray-200 text-xs">
+                                <span className="font-bold text-[#3E2723] text-sm">የ {inst} ክፍያ</span>
                                 {detail.isFree ? (
-                                   <span className="text-blue-600 font-black bg-blue-100 px-1 rounded">ነፃ</span>
+                                   <span className="text-blue-700 font-black bg-blue-100 border border-blue-300 px-2 py-0.5 rounded-lg">ነፃ</span>
                                 ) : (
-                                   <span className="text-[#8B5A2B] font-bold">{detail.amount || updatedStudentObj.paymentAmount || 0} ብር (ቀን {detail.date || '-'})</span>
+                                   <span className="text-[#8B5A2B] font-bold text-sm">{detail.amount || updatedStudentObj.paymentAmount || 0} ብር <span className="text-gray-500 text-xs">(ቀን {detail.date || '-'})</span></span>
                                 )}
                              </div>
                           )
@@ -1270,31 +1272,31 @@ export default function App() {
                   </div>
 
                   {updatedStudentObj.status === 'active' && studentArrearsInfo.totalArrears > 0 && (
-                     <div className="col-span-2 mt-2 pt-2 border-t border-red-200 flex justify-between items-center bg-red-50 p-2 rounded shadow-inner">
-                       <span className="font-black text-red-800 flex items-center gap-1"><AlertCircle size={14}/> ያለበት አጠቃላይ ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
-                       <span className="text-red-700 font-black bg-red-200 px-2 py-1 rounded shadow-sm"> {studentArrearsInfo.totalArrears} ብር </span>
+                     <div className="col-span-2 mt-3 pt-3 border-t border-red-200 flex justify-between items-center bg-red-50 p-3 rounded-xl shadow-inner border">
+                       <span className="font-black text-red-800 flex items-center gap-1.5"><AlertCircle size={16}/> ያለበት አጠቃላይ ዕዳ ({studentArrearsInfo.unpaidKeys.length} ወር)፦ </span> 
+                       <span className="text-red-800 font-black bg-red-200 px-3 py-1 rounded-lg shadow-sm border border-red-300 text-sm"> {studentArrearsInfo.totalArrears} ብር </span>
                      </div>
                   )}
                 </div>
               </div>
 
-              {/* 3. የተሻሻለ፦ የትምህርት ደረጃ ክትትልን (Lesson Plan) በየመሳሪያው ለይቶ ያሳያል */}
-              <div className="bg-white rounded-2xl p-4 border border-[#EADDCA] shadow-sm mb-4">
-                <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><ListMusic size={14} className="mr-1"/> የትምህርት ደረጃ ክትትል (Progress)</h4>
-                <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
+              {/* 3. የተሻሻለ፦ የትምህርት ደረጃ ክትትል (Lesson Plan) በየመሳሪያው */}
+              <div className="bg-white rounded-2xl p-5 border border-[#EADDCA] shadow-sm mb-4">
+                <h4 className="text-sm font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-3 mb-4 flex items-center"><ListMusic size={16} className="mr-1.5"/> የትምህርት ደረጃ ክትትል (Progress)</h4>
+                <div className="space-y-5 max-h-72 overflow-y-auto pr-1">
                    {studentInstruments.map(inst => {
                        const instLessons = lessons.filter(l => l.instrument === inst).sort((a, b) => a.id - b.id);
                        if (instLessons.length === 0) return null;
                        return (
                           <div key={inst} className="mb-2">
-                             <h5 className="text-[10px] font-black text-[#8B5A2B] bg-[#FAF3E0] px-2 py-1 rounded inline-block mb-2 border border-[#D2B48C]">የ {inst} ትምህርቶች</h5>
-                             <div className="space-y-2">
+                             <h5 className="text-xs font-black text-[#8B5A2B] bg-[#FAF3E0] px-3 py-1.5 rounded-lg inline-block mb-3 border border-[#D2B48C] shadow-sm">የ {inst} ትምህርቶች</h5>
+                             <div className="space-y-2.5">
                                  {instLessons.map((lesson, idx) => {
                                     const isCompleted = updatedStudentObj.lesson_progress?.[lesson.id];
                                     return (
-                                      <div key={lesson.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
-                                        <button className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={12}/>}</button>
-                                        <div><p className={`text-[11px] font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title}</p><p className={`text-[9px] mt-0.5 ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p></div>
+                                      <div key={lesson.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-[#D2B48C] transition-colors cursor-pointer" onClick={() => toggleStudentLessonProgress(updatedStudentObj, lesson.id)}>
+                                        <button className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${isCompleted ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300'}`}>{isCompleted && <Check size={14}/>}</button>
+                                        <div><p className={`text-xs font-bold ${isCompleted ? 'text-gray-400 line-through' : 'text-[#3E2723]'}`}>{idx + 1}. {lesson.title}</p><p className={`text-[10px] mt-1 leading-relaxed ${isCompleted ? 'text-gray-300 line-through' : 'text-gray-500'}`}>{lesson.content}</p></div>
                                       </div>
                                     )
                                  })}
@@ -1303,7 +1305,7 @@ export default function App() {
                        )
                    })}
                    {!lessons.some(l => studentInstruments.includes(l.instrument)) && (
-                      <div className="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-gray-100"><p className="text-[10px] font-bold">ለተመዘገቡት የመሳሪያ አይነቶች የተመዘገበ የትምህርት ቅደም ተከተል የለም።</p></div>
+                      <div className="text-center py-6 text-gray-400 bg-gray-50 rounded-xl border border-gray-100"><p className="text-xs font-bold">ለተመዘገቡት የመሳሪያ አይነቶች የተመዘገበ የትምህርት ቅደም ተከተል የለም።</p></div>
                    )}
                 </div>
               </div>
@@ -1490,7 +1492,7 @@ export default function App() {
               <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center">
                 <Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)
               </label>
-              <div className="flex flex-wrap gap-4 px-3 py-3 bg-white/90 rounded-xl border border-[#D2B48C]">
+              <div className="flex flex-wrap gap-4 px-4 py-4 bg-white/90 rounded-xl border border-[#D2B48C] shadow-sm">
                 {instrumentsList.map(inst => (
                   <label key={inst} className="flex items-center space-x-1.5 text-sm font-bold text-[#3E2723] cursor-pointer">
                     <input 
@@ -1509,7 +1511,7 @@ export default function App() {
                             delete currentDetails[inst];
                         }
                         if(currentInsts.length === 0) {
-                            currentInsts.push('በገና');
+                            currentInsts.push('በገና'); // ቢያንስ አንድ መመረጥ አለበት
                             if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', isFree: false };
                         }
 
@@ -1536,14 +1538,13 @@ export default function App() {
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
             </div>
 
-            {/* 1. የክፍያ ቦታ የተሻሻለ፦ ለእያንዳንዱ መሳሪያ ክፍያ መሙያ */}
             <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
-              <p className="text-[11px] font-black text-[#8B5A2B] mb-2">የመሳሪያዎች የክፍያ ዝርዝር፡</p>
+              <p className="text-sm font-black text-[#8B5A2B] mb-3">የመሳሪያዎች የክፍያ ዝርዝር፡</p>
               {newStudent.instrumentType.map(inst => (
-                 <div key={inst} className="mb-3 p-3 bg-white/50 rounded-xl border border-[#D2B48C]">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-bold text-[#5C4033] ml-1">የ {inst} ወርሃዊ መዋጮ</label>
-                      <label className="flex items-center space-x-1.5 text-[10px] font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 shadow-sm">
+                 <div key={inst} className="mb-3 p-4 bg-white/80 rounded-xl border border-[#D2B48C] shadow-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-bold text-[#5C4033] ml-1">የ {inst} ወርሃዊ መዋጮ</label>
+                      <label className="flex items-center space-x-1.5 text-xs font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 shadow-sm">
                         <input type="checkbox" checked={newStudent.paymentDetails?.[inst]?.isFree || false}
                            onChange={(e) => {
                                const checked = e.target.checked;
@@ -1551,7 +1552,7 @@ export default function App() {
                                    ...newStudent,
                                    paymentDetails: { ...newStudent.paymentDetails, [inst]: { ...(newStudent.paymentDetails?.[inst] || {}), isFree: checked, amount: checked ? '0' : '' } }
                                });
-                           }} className="accent-blue-600 w-3.5 h-3.5" />
+                           }} className="accent-blue-600 w-4 h-4" />
                         <span>ነፃ (Scholarship)</span>
                       </label>
                     </div>
@@ -1559,19 +1560,19 @@ export default function App() {
                        {!newStudent.paymentDetails?.[inst]?.isFree ? (
                           <input type="number" placeholder="መጠን (ብር)" value={newStudent.paymentDetails?.[inst]?.amount || ''}
                              onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], amount: e.target.value}}})}
-                             className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                             className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723] focus:ring-1 focus:ring-[#8B5A2B] focus:outline-none" />
                        ) : (
-                          <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">ነፃ ተማሪ</div>
+                          <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-sm font-bold text-blue-800 flex items-center justify-center">ነፃ ተማሪ</div>
                        )}
                        <input type="number" min="1" max="30" placeholder="መክፈያ ቀን (1-30)" value={newStudent.paymentDetails?.[inst]?.date || ''}
                           onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], date: e.target.value}}})}
                           disabled={newStudent.paymentDetails?.[inst]?.isFree}
-                          className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                          className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723] focus:ring-1 focus:ring-[#8B5A2B] focus:outline-none" />
                     </div>
                  </div>
               ))}
               
-              <div className="bg-[#FAF3E0] mt-3 p-3 rounded-xl border border-[#D2B48C] flex justify-between items-center text-sm shadow-inner">
+              <div className="bg-[#FAF3E0] mt-3 p-4 rounded-xl border border-[#D2B48C] flex justify-between items-center text-base shadow-inner">
                  <span className="font-black text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ (ድምር)፡</span>
                  <span className="font-black text-green-700">{calculateTotalAmount(newStudent.paymentDetails)} ብር</span>
               </div>
@@ -1613,68 +1614,71 @@ export default function App() {
 
         <div className="space-y-4">
           {filteredInfoStudents.map(student => (
-            <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
-              <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
-                <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
-                  {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={18} className="text-[#8B5A2B]"/>}
+            <div key={student.id} className="bg-white rounded-3xl p-5 border-2 border-[#EADDCA] shadow-md">
+              <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-4 cursor-pointer mb-4 pb-4 border-b border-gray-200 relative z-10 hover:bg-gray-50 rounded-xl p-2 -m-2 transition-colors">
+                <div className="w-12 h-12 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
+                  {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={20} className="text-[#8B5A2B]"/>}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name} <span className="text-[10px] text-gray-500 font-mono">#{student.studentNo}</span></h3>
-                  <p className="text-[10px] text-gray-500 font-bold mt-0.5">{parseInstruments(student.instrumentType).join('፣ ')} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
+                  <h3 className="font-black text-[#3E2723] text-base">{student.name} <span className="text-[11px] text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded ml-1">#{student.studentNo}</span></h3>
+                  <p className="text-xs text-gray-500 font-bold mt-1">{parseInstruments(student.instrumentType).join('፣ ')} <span className="text-gray-300 mx-1">|</span> {formatEthDate(student.registrationDate)}</p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 w-full">
+              {/* 1. የተሻሻለ፦ የውጤት መሙያው ፅሁፍ ጎላ እንዲል ተደርጓል */}
+              <div className="flex flex-col gap-4 w-full">
                 {parseInstruments(student.instrumentType).map(inst => {
                    return (
-                     <div key={inst} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                     <div key={inst} className="flex flex-col">
                         {inst === 'በገና' ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-3 gap-2">
+                           <div className="flex-1 bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <span className="text-sm font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-2 mb-3"> የ {inst} ቅኝት ውጤት </span>
+                              <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ሰላምታ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_selamta`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_selamta`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ሰላምታ</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_selamta`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_selamta`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ዋኔን</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_wanen`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_wanen`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ዋኔን</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_wanen`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_wanen`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                                 <div>
-                                  <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1">ስለቸርነትህ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_silechernetih`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_silechernetih`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
+                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5">ስለቸርነትህ</label>
+                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_silechernetih`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_silechernetih`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                 </div>
                               </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
+                              <div className="flex justify-between items-center pt-4">
+                                <span className="text-sm font-black text-[#3E2723] bg-white px-3 py-1.5 rounded-lg border border-[#D2B48C] shadow-sm">
                                   ድምር: {(Number(kignitScores[student.id]?.[`${inst}_selamta`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_wanen`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_silechernetih`]) || 0)}
                                 </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_selamta`]) || 0) + (Number(s[`${inst}_wanen`]) || 0) + (Number(s[`${inst}_silechernetih`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_selamta`]) || 0) + (Number(s[`${inst}_wanen`]) || 0) + (Number(s[`${inst}_silechernetih`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-5 py-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={16} className="inline mr-1"/> መዝግብ</button>
                               </div>
                            </div>
                         ) : (inst === 'ክራር' || inst === 'ማሲንቆ') ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-[10px] font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-4 gap-2">
+                           <div className="flex-1 bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <span className="text-sm font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-2 mb-3"> የ {inst} ቅኝት ውጤት </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {['tizita', 'anchihoye', 'bati_minor', 'ambasel'].map(k => (
                                   <div key={k}>
-                                    <label className="text-[9px] text-[#8B5A2B] font-bold block mb-1 truncate">{k === 'tizita' ? 'ትዝታ' : k === 'anchihoye' ? 'አንቺሆዬ' : k === 'bati_minor' ? 'ባቲ' : 'አምባሰል'}</label>
-                                    <input type="number" value={kignitScores[student.id]?.[`${inst}_${k}`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_${k}`]: e.target.value}})} className="w-full px-1 py-1 bg-white border border-[#D2B48C] rounded-lg text-[10px] font-bold text-center" />
+                                    <label className="text-xs text-[#8B5A2B] font-bold block mb-1.5 truncate">{k === 'tizita' ? 'ትዝታ' : k === 'anchihoye' ? 'አንቺሆዬ' : k === 'bati_minor' ? 'ባቲ' : 'አምባሰል'}</label>
+                                    <input type="number" value={kignitScores[student.id]?.[`${inst}_${k}`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_${k}`]: e.target.value}})} className="w-full px-2 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
                                   </div>
                                 ))}
                               </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-[11px] font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C]">
+                              <div className="flex justify-between items-center pt-4">
+                                <span className="text-sm font-black text-[#3E2723] bg-white px-3 py-1.5 rounded-lg border border-[#D2B48C] shadow-sm">
                                   ድምር: {(Number(kignitScores[student.id]?.[`${inst}_tizita`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_anchihoye`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_bati_minor`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_ambasel`]) || 0)}
                                 </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_tizita`]) || 0) + (Number(s[`${inst}_anchihoye`]) || 0) + (Number(s[`${inst}_bati_minor`]) || 0) + (Number(s[`${inst}_ambasel`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-[10px] font-bold"><Check size={14} className="inline mr-1"/> መዝግብ</button>
+                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_tizita`]) || 0) + (Number(s[`${inst}_anchihoye`]) || 0) + (Number(s[`${inst}_bati_minor`]) || 0) + (Number(s[`${inst}_ambasel`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-5 py-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={16} className="inline mr-1"/> መዝግብ</button>
                               </div>
                            </div>
                         ) : (
-                           <div className="flex-1 flex items-center space-x-2 bg-amber-50/50 p-2 rounded-xl border border-[#D2B48C]">
-                              <span className="text-[10px] font-black text-[#5C4033] min-w-[75px]"> የ {inst} ውጤት</span>
-                              <input type="number" placeholder="ውጤት" value={tempScores[student.id]?.[inst] || ''} onChange={(e) => setTempScores({ ...tempScores, [student.id]: {...(tempScores[student.id] || {}), [inst]: e.target.value} })} className="w-full max-w-[70px] px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-xs font-bold text-center" />
-                              <button onClick={() => { const enteredScore = tempScores[student.id]?.[inst]; if (enteredScore) handleExamScoreSubmit(student.id, enteredScore); }} className="p-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg"><Check size={14} /></button>
+                           <div className="flex-1 flex items-center justify-between bg-amber-50/60 p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
+                              <span className="text-sm font-black text-[#5C4033]"> የ {inst} ውጤት (%)</span>
+                              <div className="flex items-center gap-2">
+                                 <input type="number" placeholder="ውጤት" value={tempScores[student.id]?.[inst] || ''} onChange={(e) => setTempScores({ ...tempScores, [student.id]: {...(tempScores[student.id] || {}), [inst]: e.target.value} })} className="w-20 px-3 py-2 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
+                                 <button onClick={() => { const enteredScore = tempScores[student.id]?.[inst]; if (enteredScore) handleExamScoreSubmit(student.id, enteredScore); }} className="p-2 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg transition-all shadow-sm active:scale-95"><Check size={18} /></button>
+                              </div>
                            </div>
                         )}
                      </div>
@@ -1682,23 +1686,23 @@ export default function App() {
                 })}
               </div>
 
-              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                 {student.status === 'active' ? (
                   <>
-                    <button onClick={() => setStudentStatusWithConfirm(student, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
-                      <Award size={12}/> ምረቅ
+                    <button onClick={() => setStudentStatusWithConfirm(student, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                      <Award size={16}/> ምረቅ
                     </button>
-                    <button onClick={() => setStudentStatusWithConfirm(student, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-2 rounded-lg text-[10px] font-extrabold transition-colors flex items-center justify-center gap-1">
-                      <UserMinus size={12}/> አቋርጧል
+                    <button onClick={() => setStudentStatusWithConfirm(student, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                      <UserMinus size={16}/> አቋርጧል
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setStudentStatusWithConfirm(student, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
-                    <XCircle size={14}/> ወደ ትምህርት መልስ
+                  <button onClick={() => setStudentStatusWithConfirm(student, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                    <XCircle size={16}/> ወደ ትምህርት መልስ
                   </button>
                 )}
-                <button onClick={() => askToDeleteStudent(student)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-100">
-                  <Trash2 size={16} />
+                <button onClick={() => askToDeleteStudent(student)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-red-100">
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
@@ -1909,20 +1913,20 @@ export default function App() {
           <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors"><Printer size={14} /> ሪፖርት</button>
         </div>
 
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
+        <div className="flex bg-[#FAF3E0] p-1.5 rounded-2xl border-2 border-[#D2B48C] gap-1 shadow-sm">
           <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({activeStudents.length})</button>
           <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ</button>
           <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
         </div>
 
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3">
-          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓመተ ምሕረት፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
-          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> የዕለት ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-4 shadow-sm">
+          <div><label className="block text-xs font-black text-[#8B5A2B] mb-1.5"> ዓ.ም፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2.5 px-3 rounded-xl text-sm focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+          <div><label className="block text-xs font-black text-[#8B5A2B] mb-1.5"> ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2.5 px-3 rounded-xl text-sm focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
 
         <div className="relative mb-2">
-          <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
+          <Search size={20} className="absolute left-4 top-3.5 text-[#8B5A2B]/60" />
+          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-[#EADDCA] rounded-2xl text-sm font-bold shadow-sm" />
         </div>
         
         <div className="space-y-4">
@@ -1930,51 +1934,71 @@ export default function App() {
             const insts = parseInstruments(student.instrumentType);
             
             return (
-              <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
+              <div key={student.id} className="flex flex-col p-5 bg-white rounded-3xl shadow-md border-2 border-[#EADDCA]">
                 <div className="flex items-center justify-between w-full mb-3">
                   
                   <div 
                     onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
+                    className="flex items-center space-x-4 cursor-pointer hover:bg-gray-50 p-2 -ml-2 rounded-2xl transition-colors flex-1"
                     title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 bg-gray-100 border-gray-300`}>
-                      <CreditCard size={20} className="text-gray-600" />
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border-2 bg-gray-50 border-gray-300`}>
+                      <CreditCard size={24} className="text-gray-500" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
-                        {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
+                      <h3 className="font-extrabold text-[#3E2723] text-base flex items-center gap-1.5">
+                        {student.name} <History size={14} className="text-[#8B5A2B] opacity-70"/>
                       </h3>
-                      <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                        {insts.join('፣ ')}
+                      <p className="text-xs text-gray-500 mt-1 font-bold">
+                        {insts.join('፣ ')} <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] ml-1">#{student.studentNo}</span>
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                {/* 1. የተሻሻለ፦ የእያንዳንዱን መሳሪያ ክፍያ መቆጣጠሪያ ለየብቻ ያሳያል */}
-                <div className="space-y-2 border-t border-gray-100 pt-3">
+                {/* 2. የተሻሻለ፦ የክፍያ ቁጥጥር ቀለማት እና አቀማመጥ */}
+                <div className="space-y-2.5 border-t-2 border-dashed border-gray-200 pt-4">
                   {insts.map(inst => {
                      const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
                      const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
                      const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
                      
+                     let btnClass = '';
+                     let btnText = '';
+                     let statusBg = '';
+
+                     if (status === 'SCHOLARSHIP') {
+                        btnClass = 'bg-blue-100 text-blue-800 border-blue-400';
+                        btnText = 'ነፃ ተማሪ';
+                        statusBg = 'bg-blue-50/50 border-blue-100';
+                     } else if (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') {
+                        btnClass = 'bg-yellow-100 text-yellow-800 border-yellow-400 hover:bg-yellow-200';
+                        btnText = 'ገና አልደረሰም';
+                        statusBg = 'bg-yellow-50/30 border-yellow-100';
+                     } else if (status === 'PAID') {
+                        btnClass = 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200';
+                        btnText = 'ከፍሏል ✓';
+                        statusBg = 'bg-green-50/30 border-green-100';
+                     } else {
+                        btnClass = 'bg-red-100 text-red-800 border-red-400 hover:bg-red-200';
+                        btnText = 'አልከፈለም ✗';
+                        statusBg = 'bg-red-50/30 border-red-100';
+                     }
+
                      return (
-                        <div key={inst} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl border border-gray-200">
+                        <div key={inst} className={`flex justify-between items-center p-3 rounded-xl border ${statusBg}`}>
                            <div>
-                              <span className="font-bold text-xs text-[#3E2723]">{inst} </span>
-                              <span className="text-[10px] text-gray-500">
+                              <span className="font-bold text-sm text-[#3E2723]">{inst} </span>
+                              <span className="text-xs text-gray-500 ml-1">
                                 {status === 'SCHOLARSHIP' ? '(ነፃ)' : `(${amt} ብር | ቀን ${pDate})`}
                               </span>
                            </div>
                            
                            {status === 'SCHOLARSHIP' ? (
-                             <span className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-blue-100 text-blue-700 border border-blue-300">ነፃ ተማሪ</span>
-                           ) : (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') ? (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 shadow-sm transition-colors">ገና አልደረሰም</button>
+                             <span className={`px-4 py-2 text-xs font-black rounded-xl border ${btnClass}`}>ነፃ</span>
                            ) : (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[10px] font-bold rounded-lg shadow-sm transition-colors ${status === 'PAID' ? 'bg-green-100 text-[#2E7D32] border border-green-400 hover:bg-green-200' : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'}`}>
-                                {status === 'PAID' ? 'ከፍሏል' : 'አልከፈለም'}
+                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-2 text-xs font-black rounded-xl border shadow-sm transition-colors active:scale-95 ${btnClass}`}>
+                                {btnText}
                              </button>
                            )}
                         </div>
@@ -1984,7 +2008,7 @@ export default function App() {
               </div>
             );
           })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
+          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-8 font-bold bg-white rounded-2xl border border-[#D2B48C]"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
         </div>
       </div>
     );
@@ -2096,7 +2120,7 @@ export default function App() {
                                      return (
                                         <div key={inst}>
                                            <span className="text-gray-500 mr-1">{inst}:</span>
-                                           {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-gray-500">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
+                                           {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
                                         </div>
                                      )
                                   })}
