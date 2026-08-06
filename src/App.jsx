@@ -63,8 +63,10 @@ const formatEthDate = (dateStr) => {
   return `${eth.month} ${eth.day}፣ ${eth.year}`;
 };
 
+// [BUG FIX 4]: Fixed Timezone bug to align with East Africa Time (EAT)
 const getTodayString = () => {
-  return new Date().toISOString().split('T')[0];
+  const eatTime = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+  return eatTime.toISOString().split('T')[0];
 };
 
 // ---------------- የክፍያ ወር እና የመመዝገቢያ ወር ማወዳደሪያ ----------------
@@ -184,6 +186,32 @@ const getEarliestDate = (details) => {
   if (!details) return '';
   const dates = Object.values(details).map(item => Number(item.date)).filter(d => !isNaN(d) && d > 0);
   return dates.length > 0 ? Math.min(...dates).toString() : '';
+};
+
+// [BUG FIX 1]: Function to convert Base64 to Blob and Upload to Supabase Storage
+const uploadPhotoToStorage = async (dataUrl, identifier) => {
+  if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl;
+  try {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    const blob = new Blob([u8arr], {type: mime});
+    const fileName = `photo_${identifier}_${Date.now()}.jpg`;
+
+    const { data, error } = await supabase.storage.from('student-photos').upload(fileName, blob, { upsert: true });
+    if (error) throw error;
+
+    const { data: publicUrlData } = supabase.storage.from('student-photos').getPublicUrl(fileName);
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    console.error("Photo upload error:", err);
+    return '';
+  }
 };
 
 // --- Custom Spiritual Icons & SVG ---
@@ -382,25 +410,37 @@ export default function App() {
     return { unpaidKeys: unpaidDetails, totalArrears };
   };
 
+  // [BUG FIX 5]: Avoided double fetching on startup
   useEffect(() => {
+    let mounted = true;
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthLoading(false);
-      if (session) {
-        fetchStudents();
-        fetchLessons();
+      if (mounted) {
+        setSession(session);
+        setAuthLoading(false);
+        if (session) {
+          fetchStudents();
+          fetchLessons();
+        }
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) {
+      // Only fetch if explicitly SIGNED_IN event to prevent double load on mount
+      if (event === 'SIGNED_IN' && session) {
         fetchStudents();
         fetchLessons();
+      } else if (event === 'SIGNED_OUT') {
+        setStudents([]);
+        setLessons([]);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchStudents = async () => {
@@ -598,15 +638,17 @@ export default function App() {
     });
   };
 
+  // [BUG FIX 1 applied here]: Convert compressed Base64 to Storage URL
   const handleProfilePhotoChange = async (e, student) => {
     const file = e.target.files[0];
     if (!file) return;
     triggerConfirmation(`የተማሪውን ፎቶ በአዲሱ ፎቶ ለመቀየር (Edit) እርግጠኛ ነዎት?`, 'የፎቶ ማስተካከያ', async () => {
-        showNotification('ፎቶ በማዘጋጀት ላይ...', 'success');
+        showNotification('ፎቶ በመጭመቅ እና በመጫን ላይ...', 'success');
         const compressedImage = await compressImage(file);
-        const success = await updateStudentInDb(student.id, { photo: compressedImage });
+        const photoUrl = await uploadPhotoToStorage(compressedImage, student.studentNo);
+        const success = await updateStudentInDb(student.id, { photo: photoUrl });
         if (success) {
-          setSelectedStudentProfile(prev => prev ? { ...prev, photo: compressedImage } : null);
+          setSelectedStudentProfile(prev => prev ? { ...prev, photo: photoUrl } : null);
           showNotification("ፎቶው ተቀይሮ ተቀምጧል!", "success");
         }
     });
@@ -622,12 +664,22 @@ export default function App() {
     });
   };
 
-  const handleAddStudentSubmit = (e) => {
+  const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     if (!newStudent.name || !newStudent.phone) return;
 
     triggerConfirmation(`አዲስ ተማሪ "${newStudent.name}" ለመመዝገብ መረጃው ትክክል መሆኑን ያረጋግጣሉ?`, 'የተማሪ ምዝገባ ማረጋገጫ', async () => {
         const nextNo = generateNextStudentNo();
+        
+        // [BUG FIX 1 applied here]: Convert Base64 payload to Bucket Storage URL before Insert
+        let finalPhotoUrl = '';
+        if (newStudent.photo && newStudent.photo.startsWith('data:image')) {
+            showNotification('ፎቶ ወደ ዳታቤዝ እየተጫነ ነው፣ እባክዎ ይጠብቁ...', 'success');
+            finalPhotoUrl = await uploadPhotoToStorage(newStudent.photo, nextNo);
+        } else {
+            finalPhotoUrl = newStudent.photo;
+        }
+
         const studentToInsert = {
           student_no: nextNo, name: newStudent.name, christian_name: newStudent.christianName, phone: newStudent.phone,
           emergency_contact_name: newStudent.emergencyContactName, emergency_contact_phone: newStudent.emergencyContactPhone,
@@ -637,7 +689,7 @@ export default function App() {
           payment_details: newStudent.paymentDetails,
           payment_amount: calculateTotalAmount(newStudent.paymentDetails),
           payment_date: getEarliestDate(newStudent.paymentDetails),
-          photo: newStudent.photo, status: 'active', exam_result: '',
+          photo: finalPhotoUrl, status: 'active', exam_result: '',
           registration_date: newStudent.registrationDate, payments: {}, attendance: {}, lesson_progress: {}
         };
         const { error } = await supabase.from('students').insert([studentToInsert]);
@@ -704,6 +756,7 @@ export default function App() {
     });
   };
 
+  // [BUG FIX 2]: Disabled deleting of the legacy key to preserve historical cross-instrument payments.
   const handleTogglePaymentWithConfirm = (student, basePeriodKey, inst) => {
     const key = `${basePeriodKey}_${inst}`;
     const legacyKey = basePeriodKey;
@@ -719,10 +772,6 @@ export default function App() {
     
     const actionText = isPaid ? 'አልከፈለም' : 'ከፍሏል';
     const updatedPayments = { ...student.payments, [key]: !isPaid };
-    
-    if (updatedPayments[legacyKey] !== undefined) {
-        delete updatedPayments[legacyKey];
-    }
     
     triggerConfirmation(`የተማሪ "${student.name}" የ ${inst} ክፍያ ሁኔታ ወደ "${actionText}" እንዲቀየር ይፈልጋሉ?`, 'የክፍያ ማረጋገጫ ሰነድ', async () => {
         const success = await updateStudentInDb(student.id, { payments: updatedPayments });
@@ -804,20 +853,28 @@ export default function App() {
 
   const triggerWindowPrint = () => window.print();
 
+  // [BUG FIX 3]: Sanitized student payload to avoid Token Limits & API cost overload
   const askAI = async (e) => {
     e?.preventDefault();
     if (!aiQuery.trim()) return;
     setIsAiLoading(true); setAiResponse('');
     const userQuestion = aiQuery; setAiQuery('');
     
-    const sanitizedStudents = students.map(s => {
-      const { photo, ...cleanStudent } = s;
-      return cleanStudent;
+    const summarizedStudents = students.map(s => {
+      const info = getUnpaidMonthsInfo(s);
+      return {
+          name: s.name,
+          studentNo: s.studentNo,
+          status: s.status,
+          instruments: s.instrumentType,
+          arrearsMonths: info.unpaidKeys.length,
+          totalArrears: info.totalArrears
+      };
     });
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች ወቅታዊ መረጃ፦ ${JSON.stringify(sanitizedStudents)}`;
+    const systemPrompt = `አንተ የ 'አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም' የበገና እና የዜማ መምህር የሆንክ የላቀ AI ረዳት ነህ። ተማሪዎችን በትህትና እና በመንፈሳዊ ስነ-ምግባር አገልግል። የተማሪዎች አጠቃላይ መረጃ (የተጨመቀ)፦ ${JSON.stringify(summarizedStudents)}`;
 
     try {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `${systemPrompt}\n\nየተማሪው ጥያቄ፦ ${userQuestion}` }] }] }) });
