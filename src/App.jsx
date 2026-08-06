@@ -63,7 +63,6 @@ const formatEthDate = (dateStr) => {
   return `${eth.month} ${eth.day}፣ ${eth.year}`;
 };
 
-// [BUG FIX 4]: Fixed Timezone bug to align with East Africa Time (EAT)
 const getTodayString = () => {
   const eatTime = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
   return eatTime.toISOString().split('T')[0];
@@ -188,7 +187,7 @@ const getEarliestDate = (details) => {
   return dates.length > 0 ? Math.min(...dates).toString() : '';
 };
 
-// [BUG FIX 1]: Function to convert Base64 to Blob and Upload to Supabase Storage
+// Function to convert Base64 to Blob and Upload to Supabase Storage
 const uploadPhotoToStorage = async (dataUrl, identifier) => {
   if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl;
   try {
@@ -375,8 +374,8 @@ export default function App() {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', 
     instrumentType: ['በገና'], 
-    paymentDetails: { 'በገና': { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' } },
-    duration: '3 ወር', chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
+    paymentDetails: { 'በገና': { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' } },
+    chosenDay: '', chosenTime: '', photo: '', status: 'active', examResult: '',
     registrationDate: getTodayString()
   };
   const [newStudent, setNewStudent] = useState(initialStudentState);
@@ -410,7 +409,6 @@ export default function App() {
     return { unpaidKeys: unpaidDetails, totalArrears };
   };
 
-  // [BUG FIX 5]: Avoided double fetching on startup
   useEffect(() => {
     let mounted = true;
     
@@ -427,7 +425,6 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      // Only fetch if explicitly SIGNED_IN event to prevent double load on mount
       if (event === 'SIGNED_IN' && session) {
         fetchStudents();
         fetchLessons();
@@ -465,7 +462,7 @@ export default function App() {
         churchService: s.church_service,
         parish: s.parish,
         instrumentType: s.instrument_type,
-        duration: s.duration,
+        duration: s.duration, 
         chosenDay: s.chosen_day,
         chosenTime: s.chosen_time,
         paymentAmount: s.payment_amount,
@@ -568,7 +565,7 @@ export default function App() {
     const insts = parseInstruments(student.instrumentType);
     const pDetails = student.paymentDetails || {};
     insts.forEach(i => {
-       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', startDate: student.registrationDate || getTodayString(), isFree: false, status: 'active' };
+       if (!pDetails[i]) pDetails[i] = { amount: '', date: '', startDate: student.registrationDate || getTodayString(), isFree: false, status: 'active', duration: student.duration || '3 ወር' };
     });
 
     setEditFormData({
@@ -582,7 +579,6 @@ export default function App() {
       parish: student.parish || '',
       instrument_type: insts,
       paymentDetails: pDetails,
-      duration: student.duration || '3 ወር',
       chosen_day: student.chosenDay || '',
       chosen_time: student.chosenTime || '',
       registration_date: student.registrationDate || ''
@@ -606,7 +602,6 @@ export default function App() {
         church_service: editFormData.church_service,
         parish: editFormData.parish,
         instrument_type: Array.isArray(editFormData.instrument_type) ? editFormData.instrument_type.join(', ') : editFormData.instrument_type,
-        duration: editFormData.duration,
         chosen_day: editFormData.chosen_day,
         chosen_time: editFormData.chosen_time,
         payment_details: editFormData.paymentDetails,
@@ -638,7 +633,6 @@ export default function App() {
     });
   };
 
-  // [BUG FIX 1 applied here]: Convert compressed Base64 to Storage URL
   const handleProfilePhotoChange = async (e, student) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -671,7 +665,6 @@ export default function App() {
     triggerConfirmation(`አዲስ ተማሪ "${newStudent.name}" ለመመዝገብ መረጃው ትክክል መሆኑን ያረጋግጣሉ?`, 'የተማሪ ምዝገባ ማረጋገጫ', async () => {
         const nextNo = generateNextStudentNo();
         
-        // [BUG FIX 1 applied here]: Convert Base64 payload to Bucket Storage URL before Insert
         let finalPhotoUrl = '';
         if (newStudent.photo && newStudent.photo.startsWith('data:image')) {
             showNotification('ፎቶ ወደ ዳታቤዝ እየተጫነ ነው፣ እባክዎ ይጠብቁ...', 'success');
@@ -685,7 +678,7 @@ export default function App() {
           emergency_contact_name: newStudent.emergencyContactName, emergency_contact_phone: newStudent.emergencyContactPhone,
           work_status: newStudent.workStatus, church_service: newStudent.churchService, parish: newStudent.parish,
           instrument_type: Array.isArray(newStudent.instrumentType) ? newStudent.instrumentType.join(', ') : newStudent.instrumentType,
-          duration: newStudent.duration, chosen_day: newStudent.chosenDay, chosen_time: newStudent.chosenTime,
+          chosen_day: newStudent.chosenDay, chosen_time: newStudent.chosenTime,
           payment_details: newStudent.paymentDetails,
           payment_amount: calculateTotalAmount(newStudent.paymentDetails),
           payment_date: getEarliestDate(newStudent.paymentDetails),
@@ -756,7 +749,6 @@ export default function App() {
     });
   };
 
-  // [BUG FIX 2]: Disabled deleting of the legacy key to preserve historical cross-instrument payments.
   const handleTogglePaymentWithConfirm = (student, basePeriodKey, inst) => {
     const key = `${basePeriodKey}_${inst}`;
     const legacyKey = basePeriodKey;
@@ -787,7 +779,7 @@ export default function App() {
     
     triggerConfirmation(`የተማሪ "${student.name}" የ ${inst} ትምህርት ሁኔታ ወደ "${statusAmharic}" እንዲለወጥ ይፈልጋሉ?`, 'የትምህርት ደረጃ ለውጥ', async () => {
         const updatedDetails = { ...student.paymentDetails };
-        if (!updatedDetails[inst]) updatedDetails[inst] = { amount: '', date: '', startDate: student.registrationDate, isFree: false };
+        if (!updatedDetails[inst]) updatedDetails[inst] = { amount: '', date: '', startDate: student.registrationDate, isFree: false, duration: '3 ወር' };
         updatedDetails[inst].status = newStatus;
 
         const allInsts = parseInstruments(student.instrumentType);
@@ -853,7 +845,6 @@ export default function App() {
 
   const triggerWindowPrint = () => window.print();
 
-  // [BUG FIX 3]: Sanitized student payload to avoid Token Limits & API cost overload
   const askAI = async (e) => {
     e?.preventDefault();
     if (!aiQuery.trim()) return;
@@ -1229,14 +1220,14 @@ export default function App() {
 
                             if (e.target.checked) {
                                 currentInsts.push(inst);
-                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
+                                if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
                             } else {
                                 currentInsts = currentInsts.filter(i => i !== inst);
                                 delete currentDetails[inst];
                             }
                             if(currentInsts.length === 0) {
                                 currentInsts.push('በገና');
-                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
+                                if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
                             }
 
                             setEditFormData({...editFormData, instrument_type: currentInsts, paymentDetails: currentDetails});
@@ -1250,10 +1241,9 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የጊዜ ርቀት</label><select value={editFormData.duration} onChange={e=>setEditFormData({...editFormData, duration: e.target.value})} className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] bg-white focus:outline-none focus:border-[#8B5A2B]">{['3 ወር', '6 ወር', '9 ወር'].map(i => <option key={i} value={i}>{i}</option>)}</select></div>
                   <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ቀን</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_day} onChange={e=>setEditFormData({...editFormData, chosen_day: e.target.value})}/></div>
+                  <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 </div>
-                <div><label className="text-[10px] font-black text-[#5C4033] block mb-1">የመረጡት ሰዓት</label><input type="text" className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" value={editFormData.chosen_time} onChange={e=>setEditFormData({...editFormData, chosen_time: e.target.value})}/></div>
                 
                 <div className="mt-2 border-t border-dashed border-[#D2B48C] pt-2">
                    <p className="text-[10px] font-black text-[#8B5A2B] mb-2">የእያንዳንዱ መሳሪያ ክፍያ መረጃ ማስተካከያ፡</p>
@@ -1286,11 +1276,21 @@ export default function App() {
                              disabled={editFormData.paymentDetails?.[inst]?.isFree} 
                              className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
                          </div>
-                         <div>
-                            <label className="text-[9px] font-bold text-[#5C4033] block mb-1">የጀመረበት ቀን</label>
-                            <input type="date" value={editFormData.paymentDetails?.[inst]?.startDate || editFormData.registration_date} 
-                               onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], startDate: e.target.value}}})} 
-                               className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                         <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] font-bold text-[#5C4033] block mb-1">የጀመረበት ቀን</label>
+                              <input type="date" value={editFormData.paymentDetails?.[inst]?.startDate || editFormData.registration_date} 
+                                 onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], startDate: e.target.value}}})} 
+                                 className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none"/>
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-[#5C4033] block mb-1">የቆይታ ጊዜ</label>
+                              <select value={editFormData.paymentDetails?.[inst]?.duration || '3 ወር'}
+                                 onChange={(e) => setEditFormData({...editFormData, paymentDetails: {...editFormData.paymentDetails, [inst]: {...editFormData.paymentDetails?.[inst], duration: e.target.value}}})}
+                                 className="w-full border border-[#D2B48C] p-2 rounded-lg text-xs font-bold focus:outline-none bg-white">
+                                 {['3 ወር', '6 ወር', '9 ወር'].map(d => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                            </div>
                          </div>
                       </div>
                    ))}
@@ -1378,7 +1378,6 @@ export default function App() {
                 <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><BookOpen size={14} className="mr-1"/> የትምህርት እና ክፍያ መረጃ </h4>
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
                   <div className="col-span-2 mb-2"><p className="text-gray-500 mb-0.5"> የተመዘገቡባቸው መሳሪያዎች </p><p className="font-bold text-[#3E2723] bg-[#F5E6D3] inline-block px-2 py-0.5 rounded">{studentInstruments.join('፣ ')}</p></div>
-                  <div><p className="text-gray-500 mb-0.5"> የጊዜ ርቀት </p><p className="font-bold text-[#3E2723]">{updatedStudentObj.duration || '-'}</p></div>
                   <div className="col-span-2">
                     <p className="text-gray-500 mb-0.5 flex items-center"><Clock size={12} className="mr-1"/> የተመረጠ ቀን እና ሰዓት </p>
                     <p className="font-bold text-[#3E2723]">{updatedStudentObj.chosenDay || '-'} <span className="mx-1">|</span> {updatedStudentObj.chosenTime || '-'}</p>
@@ -1393,7 +1392,7 @@ export default function App() {
                              <div key={inst} className="flex justify-between items-center bg-gray-50 p-1.5 rounded border border-gray-200 text-[10px]">
                                 <div>
                                   <span className="font-bold text-[#3E2723]">የ {inst} ክፍያ</span>
-                                  <span className="text-gray-500 text-[9px] block">ጀምሯል፡ {formatEthDate(detail.startDate || updatedStudentObj.registrationDate)}</span>
+                                  <span className="text-gray-500 text-[9px] block">ጀምሯል፡ {formatEthDate(detail.startDate || updatedStudentObj.registrationDate)} | ቆይታ፡ <span className="text-[#8B5A2B] font-bold">{detail.duration || updatedStudentObj.duration || '3 ወር'}</span></span>
                                 </div>
                                 {detail.isFree ? (
                                    <span className="text-blue-600 font-black bg-blue-100 px-1 rounded">ነፃ</span>
@@ -1639,14 +1638,14 @@ export default function App() {
 
                         if (e.target.checked) {
                             currentInsts.push(inst);
-                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
+                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
                         } else {
                             currentInsts = currentInsts.filter(i => i !== inst);
                             delete currentDetails[inst];
                         }
                         if(currentInsts.length === 0) {
                             currentInsts.push('በገና');
-                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active' };
+                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
                         }
 
                         setNewStudent({...newStudent, instrumentType: currentInsts, paymentDetails: currentDetails});
@@ -1659,14 +1658,6 @@ export default function App() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1 mt-2"> የትምህርት ቆይታ ርቀት </label>
-              <div className="flex flex-wrap gap-4 px-2">
-                {['3 ወር', '6 ወር', '9 ወር'].map((dur) => (
-                  <label key={dur} className="flex items-center space-x-1.5 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="duration" value={dur} checked={newStudent.duration === dur} onChange={(e) => setNewStudent({...newStudent, duration: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span>{dur}</span></label>
-                ))}
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት የትምህርት እለት </label><input type="text" placeholder="ምሳሌ፦ ቅዳሜ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenDay} onChange={(e) => setNewStudent({...newStudent, chosenDay: e.target.value})} /></div>
               <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
@@ -1703,11 +1694,21 @@ export default function App() {
                           disabled={newStudent.paymentDetails?.[inst]?.isFree}
                           className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
                     </div>
-                    <div>
-                       <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">የጀመረበት ቀን</label>
-                       <input type="date" value={newStudent.paymentDetails?.[inst]?.startDate || newStudent.registrationDate}
-                          onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], startDate: e.target.value}}})}
-                          className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                    <div className="grid grid-cols-2 gap-3">
+                       <div>
+                          <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">የጀመረበት ቀን</label>
+                          <input type="date" value={newStudent.paymentDetails?.[inst]?.startDate || newStudent.registrationDate}
+                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], startDate: e.target.value}}})}
+                             className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
+                       </div>
+                       <div>
+                          <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">ቆይታ (ወር)</label>
+                          <select value={newStudent.paymentDetails?.[inst]?.duration || '3 ወር'}
+                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], duration: e.target.value}}})}
+                             className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]">
+                             {['3 ወር', '6 ወር', '9 ወር'].map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                       </div>
                     </div>
                  </div>
               ))}
@@ -2333,7 +2334,13 @@ export default function App() {
                        ))}
                     </td>
                     
-                    {reportConfig.type !== 'academic' && <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B] align-top">{s.duration || '-'}</td>}
+                    {reportConfig.type !== 'academic' && <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B] align-top">
+                        {insts.map((inst, i) => (
+                           <div key={inst} className={`py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
+                             {s.paymentDetails?.[inst]?.duration || s.duration || '-'}
+                           </div>
+                        ))}
+                    </td>}
                     
                     {reportConfig.type === 'general' && (
                         <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">{s.examResult ? `${s.examResult}%` : '-'}</td>
