@@ -2206,7 +2206,7 @@ export default function App() {
             <div className="flex justify-center mb-2"><EthiopianCross className="w-10 h-10 text-[#8B5A2B]" /></div>
             <h2 className="text-2xl font-black mb-1"> አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም </h2>
             <h3 className="text-lg font-bold text-[#8B5A2B]">
-              {filterTitles[reportConfig.statusFilter]} - {reportConfig.type === 'general' ? 'አጠቃላይ ሪፖርት' : reportConfig.type === 'attendance' ? 'የመገኘት ሪፖርት' : reportConfig.type === 'payment' ? 'የክፍያ ሪፖርት' : 'ሁኔታና ውጤት ሪፖርት'}
+              {filterTitles[reportConfig.statusFilter]} - {reportConfig.type === 'general' ? 'አጠቃላይ ሪፖርት' : reportConfig.type === 'attendance' ? 'የመገኘት ሪፖርት' : reportConfig.type === 'payment' ? 'የክፍያ ሪፖርት' : 'የቅኝት ውጤት ሪፖርት'}
             </h3>
             <p className="mt-1 text-sm text-gray-500"> ዓ.ም: {selectedYear} | ወር: {selectedMonth} | ቀን: {new Date().toLocaleDateString('am-ET')}</p>
           </div>
@@ -2244,10 +2244,10 @@ export default function App() {
                 {reportConfig.type === 'payment' && <th className="border border-gray-300 p-2 text-center"> የ {selectedMonth} ክፍያ </th>}
                 {reportConfig.type === 'attendance' && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት) </th>}
                 
-                {/* 5. የተሻሻለ፦ የአካዳሚክ ሪፖርት የቅኝት ዝርዝር ያካትታል */}
                 {reportConfig.type === 'academic' && (
                   <>
-                    <th className="border border-gray-300 p-2 text-center text-xs">የቅኝት እና ጠቅላላ ውጤት ዝርዝር</th>
+                    <th className="border border-gray-300 p-2 text-left text-xs">የቅኝት ውጤት ዝርዝር</th>
+                    <th className="border border-gray-300 p-2 text-center text-xs">ድምር</th>
                   </>
                 )}
               </tr>
@@ -2269,7 +2269,11 @@ export default function App() {
                     )}
                     
                     <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600 align-top">
-                       {insts.map(inst => <div key={inst} className="mb-1">{inst}</div>)}
+                       {insts.map((inst, i) => (
+                         <div key={inst} className={`py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
+                           {inst}
+                         </div>
+                       ))}
                     </td>
                     
                     {reportConfig.type !== 'academic' && <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B] align-top">{s.duration || '-'}</td>}
@@ -2299,41 +2303,60 @@ export default function App() {
                     )}
 
                     {reportConfig.type === 'academic' && (
-                        <td className="border border-gray-300 p-2 align-top">
-                          <table className="w-full border-collapse border border-gray-300 text-left">
-                            <thead>
-                              <tr className="bg-gray-100 text-[10px] sm:text-xs text-gray-700">
-                                <th className="border border-gray-300 p-1">መሳሪያ</th>
-                                <th className="border border-gray-300 p-1">የቅኝት ዝርዝር</th>
-                                <th className="border border-gray-300 p-1 text-center">ጠቅላላ ውጤት</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                             {insts.map(inst => {
+                        <>
+                          <td className="border border-gray-300 p-2 align-top">
+                             {insts.map((inst, i) => {
                                  const ks = s.kignit_scores || kignitScores[s.id] || {};
-                                 let details = '-';
-                                 let total = 0;
+                                 let details = [];
                                  if (inst === 'በገና') {
-                                     details = `ሰላምታ: ${ks[`${inst}_selamta`]||0}፣ ዋኔን: ${ks[`${inst}_wanen`]||0}፣ ቸርነትህ: ${ks[`${inst}_silechernetih`]||0}`;
-                                     total = (Number(ks[`${inst}_selamta`])||0) + (Number(ks[`${inst}_wanen`])||0) + (Number(ks[`${inst}_silechernetih`])||0);
+                                     details = [
+                                       `ሰላምታ: ${ks[`${inst}_selamta`]||0}`,
+                                       `ዋኔን: ${ks[`${inst}_wanen`]||0}`,
+                                       `ቸርነትህ: ${ks[`${inst}_silechernetih`]||0}`
+                                     ];
                                  } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
-                                     details = `ትዝታ: ${ks[`${inst}_tizita`]||0}፣ አንቺሆዬ: ${ks[`${inst}_anchihoye`]||0}፣ ባቲ: ${ks[`${inst}_bati_minor`]||0}፣ አምባሰል: ${ks[`${inst}_ambasel`]||0}`;
-                                     total = (Number(ks[`${inst}_tizita`])||0) + (Number(ks[`${inst}_anchihoye`])||0) + (Number(ks[`${inst}_bati_minor`])||0) + (Number(ks[`${inst}_ambasel`])||0);
+                                     details = [
+                                       `ትዝታ: ${ks[`${inst}_tizita`]||0}`,
+                                       `አንቺሆዬ: ${ks[`${inst}_anchihoye`]||0}`,
+                                       `ባቲ: ${ks[`${inst}_bati_minor`]||0}`,
+                                       `አምባሰል: ${ks[`${inst}_ambasel`]||0}`
+                                     ];
                                  } else {
-                                     details = `ውጤት (በመቶኛ)`;
-                                     total = tempScores[s.id]?.[inst] || s.examResult || 0;
+                                     details = [`ውጤት (በመቶኛ)`];
                                  }
+                                 
                                  return (
-                                   <tr key={inst}>
-                                     <td className="border border-gray-300 p-1 text-[10px] sm:text-xs font-bold text-gray-700">{inst}</td>
-                                     <td className="border border-gray-300 p-1 text-[10px] sm:text-xs text-gray-600">{details}</td>
-                                     <td className="border border-gray-300 p-1 text-[10px] sm:text-xs font-black text-[#8B5A2B] text-center">{total}</td>
-                                   </tr>
+                                   <div key={inst} className={`text-xs text-gray-700 py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
+                                     <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                       {details.map((d, idx) => (
+                                         <span key={idx} className="bg-gray-100 px-2 py-0.5 rounded border border-gray-200 whitespace-nowrap">{d}</span>
+                                       ))}
+                                     </div>
+                                   </div>
                                  )
                              })}
-                            </tbody>
-                          </table>
-                        </td>
+                          </td>
+                          
+                          <td className="border border-gray-300 p-2 align-top text-center">
+                             {insts.map((inst, i) => {
+                                 const ks = s.kignit_scores || kignitScores[s.id] || {};
+                                 let total = 0;
+                                 if (inst === 'በገና') {
+                                     total = (Number(ks[`${inst}_selamta`])||0) + (Number(ks[`${inst}_wanen`])||0) + (Number(ks[`${inst}_silechernetih`])||0);
+                                 } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
+                                     total = (Number(ks[`${inst}_tizita`])||0) + (Number(ks[`${inst}_anchihoye`])||0) + (Number(ks[`${inst}_bati_minor`])||0) + (Number(ks[`${inst}_ambasel`])||0);
+                                 } else {
+                                     total = tempScores[s.id]?.[inst] || s.examResult || 0;
+                                 }
+                                 
+                                 return (
+                                   <div key={inst} className={`text-sm font-black text-[#8B5A2B] py-1 flex items-center justify-center ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
+                                     {total}
+                                   </div>
+                                 )
+                             })}
+                          </td>
+                        </>
                     )}
                   </tr>
                 );
