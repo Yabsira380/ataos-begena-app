@@ -5,7 +5,8 @@ import {
   Camera, User, Sparkles, Send, Loader2, ChevronDown, Clock, Banknote,
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
-  Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText, History
+  Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText, History,
+  Package, ShoppingCart, TrendingUp, PlusCircle
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -370,6 +371,13 @@ export default function App() {
     statusFilter: 'all'
   });
 
+  // --- Inventory & Sales States ---
+  const [inventory, setInventory] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: 'በገና', quantity: 1, price: 0 });
+  const [sellForm, setSellForm] = useState({ itemId: '', quantity: 1 });
+
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
     workStatus: 'ተማሪ', churchService: '', parish: '', 
@@ -419,6 +427,7 @@ export default function App() {
         if (session) {
           fetchStudents();
           fetchLessons();
+          fetchInventory();
         }
       }
     });
@@ -428,9 +437,12 @@ export default function App() {
       if (event === 'SIGNED_IN' && session) {
         fetchStudents();
         fetchLessons();
+        fetchInventory();
       } else if (event === 'SIGNED_OUT') {
         setStudents([]);
         setLessons([]);
+        setInventory([]);
+        setSales([]);
       }
     });
 
@@ -500,6 +512,21 @@ export default function App() {
       }
     } catch (err) {
       console.error("Lessons fetch error:", err);
+    }
+  };
+
+  const fetchInventory = async () => {
+    setIsInventoryLoading(true);
+    try {
+      const { data: invData, error: invError } = await supabase.from('inventory').select('*').order('id', { ascending: true });
+      if (invData && !invError) setInventory(invData);
+      
+      const { data: salesData, error: salesError } = await supabase.from('sales').select('*, inventory(name)').order('sale_date', { ascending: false });
+      if (salesData && !salesError) setSales(salesData);
+    } catch (err) {
+      showNotification('የዕቃ መረጃዎችን ለማምጣት አልተቻለም! (Tables መኖራቸውን ያረጋግጡ)', 'error');
+    } finally {
+      setIsInventoryLoading(false);
     }
   };
 
@@ -840,6 +867,49 @@ export default function App() {
     triggerConfirmation('ይህንን ትምህርት ሙሉ በሙሉ ለማጥፋት እርግጠኛ ነዎት?', 'ትምህርት ማጥፊያ', async () => {
       const { error } = await supabase.from('lessons').delete().eq('id', id);
       if (!error) { setLessons(lessons.filter(l => l.id !== id)); showNotification('ትምህርቱ ተሰርዟል!', 'success'); }
+    });
+  };
+
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    const { error } = await supabase.from('inventory').insert([newProduct]);
+    if (error) {
+      showNotification('ዕቃ መመዝገብ አልተሳካም (የ inventory ሰንጠረዥ ዳታቤዝ ላይ መኖሩን ያረጋግጡ)', 'error');
+    } else {
+      showNotification('አዲስ ዕቃ በተሳካ ሁኔታ ተመዝግቧል!', 'success');
+      fetchInventory();
+      setNewProduct({ name: 'በገና', quantity: 1, price: 0 });
+    }
+  };
+
+  const handleSellProduct = async (e) => {
+    e.preventDefault();
+    const item = inventory.find(i => i.id === Number(sellForm.itemId));
+    if (!item || item.quantity < sellForm.quantity) {
+      showNotification('በቂ ዕቃ በክምችት የለም!', 'error');
+      return;
+    }
+
+    triggerConfirmation(`በእርግጥ ${sellForm.quantity} ${item.name} መሸጥ ይፈልጋሉ?`, 'የሽያጭ ማረጋገጫ', async () => {
+      const totalPrice = item.price * sellForm.quantity;
+      
+      const { error: saleError } = await supabase.from('sales').insert([{
+        item_id: item.id,
+        quantity_sold: sellForm.quantity,
+        total_price: totalPrice,
+        sale_date: getTodayString()
+      }]);
+
+      if (saleError) {
+        showNotification('ሽያጩን መመዝገብ አልተሳካም', 'error');
+        return;
+      }
+
+      await supabase.from('inventory').update({ quantity: item.quantity - sellForm.quantity }).eq('id', item.id);
+      
+      showNotification('ሽያጩ በተሳካ ሁኔታ ተጠናቋል!', 'success');
+      fetchInventory();
+      setSellForm({ itemId: '', quantity: 1 });
     });
   };
 
@@ -2211,6 +2281,119 @@ export default function App() {
     );
   };
 
+  const renderInventoryView = () => {
+    return (
+      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
+        <div className="flex justify-between items-center mb-2">
+          <div>
+            <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center gap-2">
+               <Package className="w-5 h-5 text-[#8B5A2B]" /> የዕቃ እና ሽያጭ መቆጣጠሪያ
+            </h2>
+            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> በገና፣ ክራር እና ሌሎችም ዕቃዎች </p>
+          </div>
+        </div>
+
+        {/* መሸጫ እና መመዝገቢያ ፎርሞች */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* አዲስ ዕቃ ገቢ ማድረጊያ */}
+          <div className="bg-white p-4 rounded-3xl border-2 border-[#EADDCA] shadow-md">
+            <h3 className="font-extrabold text-[#3E2723] text-sm mb-3 border-b pb-2 flex items-center gap-1"><PlusCircle size={16} className="text-green-600"/> አዲስ ዕቃ ገቢ ማድረግ</h3>
+            <form onSubmit={handleAddProduct} className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500">የዕቃው ዓይነት</label>
+                <select value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]">
+                  <option value="በገና">በገና</option>
+                  <option value="ክራር">ክራር</option>
+                  <option value="ከበሮ">ከበሮ</option>
+                  <option value="ማሲንቆ">ማሲንቆ</option>
+                  <option value="ዋሽንት">ዋሽንት</option>
+                  <option value="መለዋወጫ">መለዋወጫ (ጅማት/ክር/መቃ)</option>
+                  <option value="መጽሐፍ">መጽሐፍ (የዜማ/ጸሎት)</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500">ብዛት</label>
+                  <input type="number" min="1" value={newProduct.quantity} onChange={e => setNewProduct({...newProduct, quantity: Number(e.target.value)})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500">የአንዱ ዋጋ (ብር)</label>
+                  <input type="number" min="0" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-[#8B5A2B] text-white py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-[#5C4033] active:scale-95 transition-all">ወደ ካዝና አስገባ</button>
+            </form>
+          </div>
+
+          {/* መሸጫ ፎርም */}
+          <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D4AF37] shadow-md">
+             <h3 className="font-extrabold text-[#3E2723] text-sm mb-3 border-b border-[#D2B48C] pb-2 flex items-center gap-1"><ShoppingCart size={16} className="text-[#8B5A2B]"/> ዕቃ መሸጫ</h3>
+             <form onSubmit={handleSellProduct} className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500">ከካዝና ውስጥ ይምረጡ</label>
+                <select value={sellForm.itemId} onChange={e => setSellForm({...sellForm, itemId: e.target.value})} className="w-full p-2 border border-[#D2B48C] rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required>
+                  <option value="">-- ዕቃ ይምረጡ --</option>
+                  {inventory.filter(i => i.quantity > 0).map(item => (
+                    <option key={item.id} value={item.id}>{item.name} (ቀሪ: {item.quantity}) - ዋጋ: {item.price} ብር</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-500">የሚሸጠው ብዛት</label>
+                <input type="number" min="1" value={sellForm.quantity} onChange={e => setSellForm({...sellForm, quantity: Number(e.target.value)})} className="w-full p-2 border border-[#D2B48C] rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
+              </div>
+              <button type="submit" className="w-full bg-green-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-md hover:bg-green-800 active:scale-95 transition-all">ሽያጩን አረጋግጥ</button>
+            </form>
+          </div>
+        </div>
+
+        {/* የክምችት (Inventory) ዝርዝር */}
+        <div className="bg-white rounded-3xl p-4 border border-[#EADDCA] shadow-sm">
+          <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
+             <h4 className="text-xs font-black text-[#8B5A2B] flex items-center"><Package size={14} className="mr-1"/> አሁን በካዝና ያሉ ክምችቶች</h4>
+             {isInventoryLoading && <Loader2 size={12} className="animate-spin text-[#8B5A2B]" />}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+             {inventory.map(item => (
+                <div key={item.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 bg-amber-100 text-amber-800 rounded-lg flex items-center justify-center font-black">{item.name.substring(0, 1)}</div>
+                     <div>
+                        <p className="text-sm font-black text-[#3E2723]">{item.name}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">ያለው ብዛት: <span className={item.quantity < 3 ? 'text-red-500 font-black' : 'text-green-600 font-black'}>{item.quantity}</span></p>
+                     </div>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-sm font-black text-[#8B5A2B]">{item.price} ብር</p>
+                  </div>
+                </div>
+             ))}
+             {inventory.length === 0 && !isInventoryLoading && <p className="text-xs text-gray-400 py-2">ምንም የተመዘገበ ዕቃ የለም።</p>}
+          </div>
+        </div>
+
+        {/* የሽያጭ ታሪክ */}
+        <div className="bg-white rounded-3xl p-4 border border-[#EADDCA] shadow-sm">
+          <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><TrendingUp size={14} className="mr-1"/> የሽያጭ ታሪክ</h4>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+             {sales.map(sale => (
+                <div key={sale.id} className="flex justify-between items-center bg-[#F9F6F0] p-3 rounded-xl border border-[#EADDCA] text-xs shadow-sm">
+                   <div>
+                      <p className="font-bold text-[#3E2723]">{sale.inventory?.name || 'ያልታወቀ ዕቃ'} <span className="text-gray-500">(x{sale.quantity_sold})</span></p>
+                      <p className="text-[9px] text-gray-500 font-mono mt-0.5">{formatEthDate(sale.sale_date)}</p>
+                   </div>
+                   <div className="font-black text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+                      + {sale.total_price} ብር
+                   </div>
+                </div>
+             ))}
+             {sales.length === 0 && !isInventoryLoading && <p className="text-xs text-gray-400 py-2">የተመዘገበ ሽያጭ የለም።</p>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderReportModal = () => {
     if (!reportConfig.show) return null;
 
@@ -2489,6 +2672,7 @@ export default function App() {
           {activeTab === 'lessons' && renderLessonsView()}
           {activeTab === 'attendance' && renderAttendanceView()}
           {activeTab === 'payments' && renderPaymentsView()}
+          {activeTab === 'inventory' && renderInventoryView()}
         </main>
 
         {!isAiOpen && (
@@ -2508,6 +2692,7 @@ export default function App() {
             { id: 'lessons', icon: ListMusic, label: 'አታኦስ' },
             { id: 'attendance', icon: CheckSquare, label: 'መገኘት' },
             { id: 'payments', icon: CreditCard, label: 'ክፍያ' },
+            { id: 'inventory', icon: Package, label: 'መሸጫ' },
           ].map((item) => (
             <button 
               key={item.id} 
