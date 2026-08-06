@@ -6,7 +6,7 @@ import {
   Trash2, AlertTriangle, Info, Printer, X, Copy, Search, BookOpen,
   Church, PhoneCall, FileText, Music, Quote, Award, GraduationCap, Check, UserMinus,
   Calendar, Shield, AlertCircle, Edit, Save, ListMusic, Plus, MessageSquareText, History,
-  Package, ShoppingCart, TrendingUp, PlusCircle
+  Package, ShoppingCart, Tag, TrendingUp, Archive, PlusCircle, MinusCircle, Box
 } from 'lucide-react';
 
 // --- Supabase Client Initialization ---
@@ -188,7 +188,6 @@ const getEarliestDate = (details) => {
   return dates.length > 0 ? Math.min(...dates).toString() : '';
 };
 
-// Function to convert Base64 to Blob and Upload to Supabase Storage
 const uploadPhotoToStorage = async (dataUrl, identifier) => {
   if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl;
   try {
@@ -371,12 +370,19 @@ export default function App() {
     statusFilter: 'all'
   });
 
-  // --- Inventory & Sales States ---
+  // Inventory & Sales States
   const [inventory, setInventory] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [isInventoryLoading, setIsInventoryLoading] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: 'በገና', quantity: 1, price: 0 });
-  const [sellForm, setSellForm] = useState({ itemId: '', quantity: 1 });
+  const [salesHistory, setSalesHistory] = useState([]);
+  const [inventoryFilter, setInventoryFilter] = useState('all');
+  const [inventorySearch, setInventorySearch] = useState('');
+  
+  const [isAddInventoryOpen, setIsAddInventoryOpen] = useState(false);
+  const [inventoryForm, setInventoryForm] = useState({ name: '', category: 'መሳሪያዎች', quantity: '', price: '' });
+  const [editingInventory, setEditingInventory] = useState(null);
+  
+  const [sellModalData, setSellModalData] = useState(null); 
+  const [restockModalData, setRestockModalData] = useState(null);
+  const [isSalesHistoryOpen, setIsSalesHistoryOpen] = useState(false);
 
   const initialStudentState = {
     name: '', christianName: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
@@ -428,6 +434,7 @@ export default function App() {
           fetchStudents();
           fetchLessons();
           fetchInventory();
+          fetchSalesHistory();
         }
       }
     });
@@ -438,11 +445,12 @@ export default function App() {
         fetchStudents();
         fetchLessons();
         fetchInventory();
+        fetchSalesHistory();
       } else if (event === 'SIGNED_OUT') {
         setStudents([]);
         setLessons([]);
         setInventory([]);
-        setSales([]);
+        setSalesHistory([]);
       }
     });
 
@@ -455,11 +463,7 @@ export default function App() {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('id', { ascending: true });
-
+      const { data, error } = await supabase.from('students').select('*').order('id', { ascending: true });
       if (error) throw error;
 
       const mappedData = data.map(s => ({
@@ -507,27 +511,22 @@ export default function App() {
   const fetchLessons = async () => {
     try {
       const { data, error } = await supabase.from('lessons').select('*').order('id', { ascending: true });
-      if (!error && data) {
-        setLessons(data);
-      }
-    } catch (err) {
-      console.error("Lessons fetch error:", err);
-    }
+      if (!error && data) setLessons(data);
+    } catch (err) { console.error("Lessons fetch error:", err); }
   };
 
   const fetchInventory = async () => {
-    setIsInventoryLoading(true);
     try {
-      const { data: invData, error: invError } = await supabase.from('inventory').select('*').order('id', { ascending: true });
-      if (invData && !invError) setInventory(invData);
-      
-      const { data: salesData, error: salesError } = await supabase.from('sales').select('*, inventory(name)').order('sale_date', { ascending: false });
-      if (salesData && !salesError) setSales(salesData);
-    } catch (err) {
-      showNotification('የዕቃ መረጃዎችን ለማምጣት አልተቻለም! (Tables መኖራቸውን ያረጋግጡ)', 'error');
-    } finally {
-      setIsInventoryLoading(false);
-    }
+      const { data, error } = await supabase.from('inventory').select('*').order('id', { ascending: true });
+      if (!error && data) setInventory(data);
+    } catch (err) { console.error("Inventory fetch error:", err); }
+  };
+
+  const fetchSalesHistory = async () => {
+    try {
+      const { data, error } = await supabase.from('sales_history').select('*').order('id', { ascending: false });
+      if (!error && data) setSalesHistory(data);
+    } catch (err) { console.error("Sales History fetch error:", err); }
   };
 
   const handleLogin = async (e) => {
@@ -557,14 +556,12 @@ export default function App() {
     try {
       const { error } = await supabase.from('students').update(updatedFields).eq('id', studentId);
       if (error) {
-        console.error("Supabase Error:", error);
         showNotification(`የዳታቤዝ ስህተት: ${error.message}`, 'error');
         return false;
       }
       await fetchStudents();
       return true;
     } catch (err) {
-      console.error(err);
       showNotification('ማስተካከያው አልተሳካም! ዳታቤዝ ላይ kignit_scores ኮለም መኖሩን ያረጋግጡ።', 'error');
       return false;
     }
@@ -870,46 +867,109 @@ export default function App() {
     });
   };
 
-  const handleAddProduct = async (e) => {
+  // --- INVENTORY FUNCTIONS ---
+  const handleSaveInventory = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.from('inventory').insert([newProduct]);
-    if (error) {
-      showNotification('ዕቃ መመዝገብ አልተሳካም (የ inventory ሰንጠረዥ ዳታቤዝ ላይ መኖሩን ያረጋግጡ)', 'error');
-    } else {
-      showNotification('አዲስ ዕቃ በተሳካ ሁኔታ ተመዝግቧል!', 'success');
-      fetchInventory();
-      setNewProduct({ name: 'በገና', quantity: 1, price: 0 });
+    if (!inventoryForm.name || !inventoryForm.price) {
+        showNotification('እባክዎ የዕቃውን ስም እና ዋጋ ያስገቡ!', 'error');
+        return;
     }
+
+    triggerConfirmation(editingInventory ? 'ይህን የንብረት መረጃ ማስተካከል ይፈልጋሉ?' : 'ይህን አዲስ ንብረት ወደ ክምችት ማስገባት ይፈልጋሉ?', 'የንብረት ማረጋገጫ', async () => {
+        const payload = {
+            name: inventoryForm.name,
+            category: inventoryForm.category,
+            quantity: parseInt(inventoryForm.quantity || 0, 10),
+            price: parseFloat(inventoryForm.price || 0)
+        };
+
+        try {
+            if (editingInventory) {
+                const { error } = await supabase.from('inventory').update(payload).eq('id', editingInventory.id);
+                if (error) throw error;
+                showNotification('የንብረት መረጃው በተሳካ ሁኔታ ተስተካክሏል!', 'success');
+            } else {
+                const { error } = await supabase.from('inventory').insert([payload]);
+                if (error) throw error;
+                showNotification('አዲሱ ንብረት በተሳካ ሁኔታ ተመዝግቧል!', 'success');
+            }
+            setIsAddInventoryOpen(false);
+            setEditingInventory(null);
+            setInventoryForm({ name: '', category: 'መሳሪያዎች', quantity: '', price: '' });
+            fetchInventory();
+        } catch (error) {
+            showNotification('ይቅርታ፣ ዳታቤዝ ላይ "inventory" ቴብል መኖሩን ያረጋግጡ!', 'error');
+        }
+    });
   };
 
-  const handleSellProduct = async (e) => {
+  const handleDeleteInventory = (item) => {
+    triggerConfirmation(`ዕቃ "${item.name}" ከንብረት መዝገብ ላይ ሙሉ በሙሉ እንዲሰረዝ ይፈልጋሉ?`, 'ንብረት መሰረዣ', async () => {
+        try {
+            const { error } = await supabase.from('inventory').delete().eq('id', item.id);
+            if (error) throw error;
+            showNotification('ንብረቱ ከመዝገብ ላይ ተሰርዟል!', 'success');
+            fetchInventory();
+        } catch (err) {
+            showNotification('መሰረዝ አልተቻለም!', 'error');
+        }
+    });
+  };
+
+  const handleSellConfirm = async (e) => {
     e.preventDefault();
-    const item = inventory.find(i => i.id === Number(sellForm.itemId));
-    if (!item || item.quantity < sellForm.quantity) {
-      showNotification('በቂ ዕቃ በክምችት የለም!', 'error');
-      return;
+    if (!sellModalData || !sellModalData.sellQty) return;
+    const sellQty = parseInt(sellModalData.sellQty, 10);
+    if (sellQty <= 0) { showNotification("ትክክለኛ ብዛት ያስገቡ!", "error"); return; }
+    if (sellQty > sellModalData.item.quantity) {
+        showNotification("በክምችት ካለው በላይ መሸጥ አይቻልም!", "error"); return;
     }
+    
+    const newQty = sellModalData.item.quantity - sellQty;
+    const totalPrice = sellQty * sellModalData.item.price;
+    
+    triggerConfirmation(`በእርግጥ ${sellQty} ${sellModalData.item.name} በ ${totalPrice} ብር ለመሸጥ አረጋግጠዋል?`, 'የሽያጭ ማረጋገጫ', async () => {
+        try {
+            const { error: invError } = await supabase.from('inventory').update({ quantity: newQty }).eq('id', sellModalData.item.id);
+            if (invError) throw invError;
+            
+            const { error: saleError } = await supabase.from('sales_history').insert([{
+                item_name: sellModalData.item.name,
+                category: sellModalData.item.category,
+                quantity: sellQty,
+                total_price: totalPrice,
+                date: getTodayString()
+            }]);
+            if (saleError) throw saleError;
+            
+            showNotification('ሽያጩ በተሳካ ሁኔታ ተመዝግቧል!', 'success');
+            setSellModalData(null);
+            fetchInventory();
+            fetchSalesHistory();
+        } catch (err) {
+            showNotification('ሽያጭ መመዝገብ አልተቻለም! የ sales_history ቴብል መኖሩን ያረጋግጡ።', 'error');
+        }
+    });
+  };
 
-    triggerConfirmation(`በእርግጥ ${sellForm.quantity} ${item.name} መሸጥ ይፈልጋሉ?`, 'የሽያጭ ማረጋገጫ', async () => {
-      const totalPrice = item.price * sellForm.quantity;
-      
-      const { error: saleError } = await supabase.from('sales').insert([{
-        item_id: item.id,
-        quantity_sold: sellForm.quantity,
-        total_price: totalPrice,
-        sale_date: getTodayString()
-      }]);
-
-      if (saleError) {
-        showNotification('ሽያጩን መመዝገብ አልተሳካም', 'error');
-        return;
-      }
-
-      await supabase.from('inventory').update({ quantity: item.quantity - sellForm.quantity }).eq('id', item.id);
-      
-      showNotification('ሽያጩ በተሳካ ሁኔታ ተጠናቋል!', 'success');
-      fetchInventory();
-      setSellForm({ itemId: '', quantity: 1 });
+  const handleRestockConfirm = async (e) => {
+    e.preventDefault();
+    if (!restockModalData || !restockModalData.addQty) return;
+    const addQty = parseInt(restockModalData.addQty, 10);
+    if (addQty <= 0) { showNotification("ትክክለኛ ብዛት ያስገቡ!", "error"); return; }
+    
+    const newQty = restockModalData.item.quantity + addQty;
+    
+    triggerConfirmation(`በእርግጥ ${addQty} አዲስ የ ${restockModalData.item.name} ክምችት ገቢ ለማድረግ አረጋግጠዋል?`, 'ክምችት መጨመሪያ', async () => {
+        try {
+            const { error } = await supabase.from('inventory').update({ quantity: newQty }).eq('id', restockModalData.item.id);
+            if (error) throw error;
+            showNotification('ክምችቱ በተሳካ ሁኔታ ታክሏል!', 'success');
+            setRestockModalData(null);
+            fetchInventory();
+        } catch (err) {
+            showNotification('ክምችት መጨመር አልተቻለም!', 'error');
+        }
     });
   };
 
@@ -991,6 +1051,11 @@ export default function App() {
   const droppedStudentsCount = students.filter(s => s.status === 'dropped').length;
   const totalActive = activeStudents.length;
   const totalPresentToday = activeStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]).length;
+
+  // Inventory Computations
+  const totalInventoryStock = inventory.reduce((sum, item) => sum + item.quantity, 0);
+  const lowStockItemsCount = inventory.filter(item => item.quantity < 5).length;
+  const totalSalesRevenue = salesHistory.reduce((sum, sale) => sum + Number(sale.total_price || 0), 0);
 
   // --- Views Renders ---
   
@@ -1191,7 +1256,7 @@ export default function App() {
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             <div className="bg-[#FAF3E0] p-4 rounded-2xl border border-[#D2B48C] shadow-sm">
-              <p className="text-xs text-[#5C4033] leading-relaxed font-bold text-center italic">በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን። ሰላም መምህር፣ እኔ ታማኝ የመረጃ ረዳትዎ ነኝ። ስለ ተማሪዎች ክትትል፣ ክፍያ ወይም ስለትምህርት አሰጣጥ ጉዳዮች የፈለጉትን ይጠይቁኝ።</p>
+              <p className="text-xs text-[#5C4033] leading-relaxed font-bold text-center italic">በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን። ሰላም መምህር፣ እኔ ታማኝ የመረጃ ረዳትዎ ነኝ። ስለ ተማሪዎች ክትትል፣ ክፍያ፣ መጋዘን ዕቃዎች ጉዳዮች የፈለጉትን ይጠይቁኝ።</p>
             </div>
             {aiResponse && <div className="bg-white p-4 rounded-2xl border border-[#D2B48C] text-xs leading-relaxed text-[#3E2723] font-medium shadow-inner">{aiResponse}</div>}
             {isAiLoading && <div className="flex items-center justify-center gap-2 py-4"><Loader2 className="animate-spin text-[#8B5A2B]" size={20} /><span className="text-xs text-[#8B5A2B] font-bold">ምላሽ በማዘጋጀት ላይ...</span></div>}
@@ -1615,1013 +1680,224 @@ export default function App() {
     );
   };
 
-  const renderRegistrationView = () => (
-    <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-      <div className="text-center mb-4">
-        <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-          <EthiopianCross className="w-5 h-5 text-[#8B5A2B]" />  የመመዝገቢያ ቃል ኪዳን
-        </h2>
-        <p className="text-xs text-[#8B5A2B] font-bold mt-1"> አታኦስ መንፈሳዊ የዜማ እና የበገና ማሰልጠኛ ተቋም </p>
-      </div>
-
-      <form onSubmit={handleAddStudentSubmit} className="space-y-4">
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C] flex flex-col items-center">
-          <div className="relative group cursor-pointer mb-2">
-            <div className="w-28 h-28 bg-white/80 rounded-2xl border-2 border-dashed border-[#8B5A2B] flex flex-col items-center justify-center overflow-hidden shadow-inner">
-              {newStudent.photo ? (
-                <img src={newStudent.photo} alt="Student Preview" className="w-full h-full object-cover"/>
-              ) : (
-                <div className="flex flex-col items-center text-[#8B5A2B]">
-                  <Camera size={28} className="mb-1" />
-                  <span className="text-[10px] font-black"> ፎቶ ያክሉ </span>
-                </div>
-              )}
-            </div>
-            <input type="file" accept="image/*" onChange={handlePhotoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center">
-            <User size={16} className="mr-2 text-[#8B5A2B]"/> የተመዝጋቢው የግል መረጃ 
-          </h3>
-          <div className="space-y-3">
-            <div className="bg-amber-50/60 p-3 rounded-2xl border border-[#D2B48C] mb-2">
-              <label className="block text-xs font-black text-[#5C4033] mb-1.5 ml-1 flex items-center">
-                <Calendar size={14} className="mr-1.5 text-[#8B5A2B]"/> የተመዘገቡበትን ቀን ይምረጡ <span className="text-red-500 ml-1">*</span>
-              </label>
-              <input 
-                type="date" 
-                required 
-                className="w-full px-4 py-2.5 bg-white rounded-xl border border-[#D2B48C] text-xs font-bold text-[#3E2723] focus:ring-1 focus:ring-[#8B5A2B] focus:outline-none" 
-                value={newStudent.registrationDate} 
-                onChange={(e) => setNewStudent({...newStudent, registrationDate: e.target.value})} 
-              />
-              <p className="text-[10px] text-gray-500 mt-1 pl-1">
-                በኢትዮጵያ፦ <span className="font-bold text-[#8B5A2B]">{formatEthDate(newStudent.registrationDate)}</span>
-              </p>
-            </div>
-
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ሙሉ ስም <span className="text-red-500">*</span></label><input type="text" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.name} onChange={(e) => setNewStudent({...newStudent, name: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የክርስትና ስም </label><input type="text" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.christianName} onChange={(e) => setNewStudent({...newStudent, christianName: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> ስልክ ቁጥር <span className="text-red-500">*</span></label><input type="tel" required className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" value={newStudent.phone} onChange={(e) => setNewStudent({...newStudent, phone: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስም </label><input type="text" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactName} onChange={(e) => setNewStudent({...newStudent, emergencyContactName: e.target.value})} /></div>
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የቅርብ ተጠሪ ስልክ </label><input type="tel" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm" value={newStudent.emergencyContactPhone} onChange={(e) => setNewStudent({...newStudent, emergencyContactPhone: e.target.value})} /></div>
-            </div>
-            <div className="pt-2">
-              <label className="block text-xs font-bold text-[#5C4033] mb-2 ml-1"> የስራ ሁኔታ </label>
-              <div className="flex space-x-6 px-2">
-                <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ተማሪ" checked={newStudent.workStatus === 'ተማሪ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ተማሪ </span></label>
-                <label className="flex items-center space-x-2 text-sm font-bold text-[#3E2723] cursor-pointer"><input type="radio" name="workStatus" value="ሰራተኛ" checked={newStudent.workStatus === 'ሰራተኛ'} onChange={(e) => setNewStudent({...newStudent, workStatus: e.target.value})} className="accent-[#8B5A2B] w-4 h-4" /><span> ሰራተኛ </span></label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><Church size={16} className="mr-2 text-[#8B5A2B]"/> መንፈሳዊ ህይወት መረጃ </h3>
-          <div className="space-y-4">
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> አገልግሎት ክፍል (ካለዎት)</label><input type="text" placeholder="ምሳሌ፦ መዘምራን፣ ሰንበት ተማሪ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.churchService} onChange={(e) => setNewStudent({...newStudent, churchService: e.target.value})} /></div>
-            <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመጡበት አጥቢያ ደብር </label><input type="text" placeholder="ምሳሌ፦ ቅድስት ማርያም" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723]" value={newStudent.parish} onChange={(e) => setNewStudent({...newStudent, parish: e.target.value})} /></div>
-          </div>
-        </div>
-
-        <div className="bg-[#FAF3E0]/95 backdrop-blur-sm p-5 rounded-3xl shadow-sm border-2 border-[#D2B48C]">
-          <h3 className="font-extrabold text-[#3E2723] border-b-2 border-dashed border-[#D2B48C] pb-2 mb-4 text-sm flex items-center"><BookOpen size={16} className="mr-2 text-[#8B5A2B]"/> የዜማ ትምህርት ምርጫ </h3>
-          <div className="space-y-4">
-            
-            <div>
-              <label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1 flex items-center">
-                <Music size={12} className="mr-1"/>  የዜማ መሳሪያ አይነት (ከአንድ በላይ መምረጥ ይቻላል)
-              </label>
-              <div className="flex flex-wrap gap-4 px-3 py-3 bg-white/90 rounded-xl border border-[#D2B48C]">
-                {instrumentsList.map(inst => (
-                  <label key={inst} className="flex items-center space-x-1.5 text-sm font-bold text-[#3E2723] cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      value={inst} 
-                      checked={Array.isArray(newStudent.instrumentType) && newStudent.instrumentType.includes(inst)} 
-                      onChange={(e) => {
-                        let currentInsts = Array.isArray(newStudent.instrumentType) ? [...newStudent.instrumentType] : [];
-                        let currentDetails = { ...newStudent.paymentDetails };
-
-                        if (e.target.checked) {
-                            currentInsts.push(inst);
-                            if (!currentDetails[inst]) currentDetails[inst] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
-                        } else {
-                            currentInsts = currentInsts.filter(i => i !== inst);
-                            delete currentDetails[inst];
-                        }
-                        if(currentInsts.length === 0) {
-                            currentInsts.push('በገና');
-                            if (!currentDetails['በገና']) currentDetails['በገና'] = { amount: '', date: '', startDate: getTodayString(), isFree: false, status: 'active', duration: '3 ወር' };
-                        }
-
-                        setNewStudent({...newStudent, instrumentType: currentInsts, paymentDetails: currentDetails});
-                      }} 
-                      className="accent-[#8B5A2B] w-4 h-4 rounded" 
-                    />
-                    <span>{inst}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት የትምህርት እለት </label><input type="text" placeholder="ምሳሌ፦ ቅዳሜ" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenDay} onChange={(e) => setNewStudent({...newStudent, chosenDay: e.target.value})} /></div>
-              <div><label className="block text-xs font-bold text-[#5C4033] mb-1.5 ml-1"> የመረጡት ሰዓት </label><input type="text" placeholder="ምሳሌ፦ ጠዋት 2፡00" className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm text-[#3E2723] font-bold" value={newStudent.chosenTime} onChange={(e) => setNewStudent({...newStudent, chosenTime: e.target.value})} /></div>
-            </div>
-
-            <div className="pt-2 border-t-2 border-dashed border-[#D2B48C] mt-4">
-              <p className="text-[11px] font-black text-[#8B5A2B] mb-2">የመሳሪያዎች የክፍያ ዝርዝር፡</p>
-              {newStudent.instrumentType.map(inst => (
-                 <div key={inst} className="mb-3 p-3 bg-white/50 rounded-xl border border-[#D2B48C]">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-bold text-[#5C4033] ml-1">የ {inst} መዋጮ</label>
-                      <label className="flex items-center space-x-1.5 text-[10px] font-black text-blue-700 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 shadow-sm">
-                        <input type="checkbox" checked={newStudent.paymentDetails?.[inst]?.isFree || false}
-                           onChange={(e) => {
-                               const checked = e.target.checked;
-                               setNewStudent({
-                                   ...newStudent,
-                                   paymentDetails: { ...newStudent.paymentDetails, [inst]: { ...(newStudent.paymentDetails?.[inst] || {}), isFree: checked, amount: checked ? '0' : '' } }
-                               });
-                           }} className="accent-blue-600 w-3.5 h-3.5" />
-                        <span>ነፃ (Scholarship)</span>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-2">
-                       {!newStudent.paymentDetails?.[inst]?.isFree ? (
-                          <input type="number" placeholder="መጠን (ብር)" value={newStudent.paymentDetails?.[inst]?.amount || ''}
-                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], amount: e.target.value}}})}
-                             className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
-                       ) : (
-                          <div className="w-full px-4 py-3 bg-blue-50 rounded-xl border border-blue-200 text-xs font-bold text-blue-800 flex items-center justify-center">ነፃ ተማሪ</div>
-                       )}
-                       <input type="number" min="1" max="30" placeholder="ቀን (1-30)" value={newStudent.paymentDetails?.[inst]?.date || ''}
-                          onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], date: e.target.value}}})}
-                          disabled={newStudent.paymentDetails?.[inst]?.isFree}
-                          className="w-full px-4 py-3 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                       <div>
-                          <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">የጀመረበት ቀን</label>
-                          <input type="date" value={newStudent.paymentDetails?.[inst]?.startDate || newStudent.registrationDate}
-                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], startDate: e.target.value}}})}
-                             className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]" />
-                       </div>
-                       <div>
-                          <label className="block text-[10px] font-bold text-[#5C4033] mb-1 ml-1">ቆይታ (ወር)</label>
-                          <select value={newStudent.paymentDetails?.[inst]?.duration || '3 ወር'}
-                             onChange={(e) => setNewStudent({...newStudent, paymentDetails: {...newStudent.paymentDetails, [inst]: {...newStudent.paymentDetails?.[inst], duration: e.target.value}}})}
-                             className="w-full px-4 py-2 bg-white/90 rounded-xl border border-[#D2B48C] text-sm font-bold text-[#3E2723]">
-                             {['3 ወር', '6 ወር', '9 ወር'].map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                       </div>
-                    </div>
-                 </div>
-              ))}
-              
-              <div className="bg-[#FAF3E0] mt-3 p-3 rounded-xl border border-[#D2B48C] flex justify-between items-center text-sm shadow-inner">
-                 <span className="font-black text-[#5C4033]">ጠቅላላ ወርሃዊ ክፍያ (ድምር)፡</span>
-                 <span className="font-black text-green-700">{calculateTotalAmount(newStudent.paymentDetails)} ብር</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button type="submit" className="w-full bg-gradient-to-r from-[#8B5A2B] via-[#4A2E12] to-[#5C4033] text-white font-black py-4 rounded-2xl shadow-lg hover:shadow-xl hover:border-[#D4AF37] border border-transparent transition-all active:scale-95 mt-4 text-sm font-serif tracking-widest relative z-10">
-          የተማሪውን ሰነድ መዝግብ
-        </button>
-      </form>
-    </div>
-  );
-
-  const renderAcademicView = () => {
-    const filteredInfoStudents = students.filter(s => {
-        const searchMatch = s.name.toLowerCase().includes(infoSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(infoSearch));
-        if (!searchMatch) return false;
-        
-        const insts = parseInstruments(s.instrumentType);
-        return insts.some(inst => {
-            const st = s.paymentDetails?.[inst]?.status || s.status;
-            return st === academicViewType;
-        });
-    });
-
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="flex justify-between items-center mb-2">
-          <div>
-            <h2 className="text-xl font-black text-[#3E2723] font-serif"> የተማሪዎች ሁኔታ መዝገብ </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የፈተና ውጤት እና ድርጊቶች </p>
-          </div>
-          <button onClick={() => setReportConfig({show: true, type: 'academic', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#8B5A2B] text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-[#5C4033] border border-[#D4AF37] transition-colors">
-            <Printer size={14} /> ሪፖርት
-          </button>
-        </div>
-
-        <div className="flex bg-[#FAF3E0] p-1.5 rounded-2xl border-2 border-[#D2B48C] gap-1">
-          <button onClick={() => setAcademicViewType('active')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'active' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> በመማር ላይ </button>
-          <button onClick={() => setAcademicViewType('completed')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'completed' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> ያጠናቀቁ </button>
-          <button onClick={() => setAcademicViewType('dropped')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-colors flex items-center justify-center min-w-[90px] ${academicViewType === 'dropped' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> ያቋረጡ </button>
-        </div>
-
-        <div className="relative mb-2">
-          <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={infoSearch} onChange={(e) => setInfoSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white/95 border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
-        </div>
-
-        <div className="space-y-4">
-          {filteredInfoStudents.map(student => (
-            <div key={student.id} className="bg-white rounded-3xl p-4 border-2 border-[#EADDCA] shadow-md">
-              <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-3 cursor-pointer mb-3 pb-3 border-b border-gray-200 relative z-10">
-                <div className="w-10 h-10 bg-[#F5E6D3] rounded-xl overflow-hidden border border-[#D2B48C] flex items-center justify-center">
-                  {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={18} className="text-[#8B5A2B]"/>}
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-[#3E2723] text-base">{student.name} <span className="text-xs text-gray-500 font-mono ml-1">#{student.studentNo}</span></h3>
-                  <p className="text-xs text-gray-500 font-bold mt-0.5">{parseInstruments(student.instrumentType).join('፣ ')} | መዝገብ፦ {formatEthDate(student.registrationDate)}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 w-full">
-                {parseInstruments(student.instrumentType).map(inst => {
-                   const instStatus = student.paymentDetails?.[inst]?.status || student.status;
-                   
-                   return (
-                     <div key={inst} className="flex flex-col">
-                        {inst === 'በገና' ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-xs font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1 mb-2"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1">ሰላምታ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_selamta`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_selamta`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1">ዋኔን</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_wanen`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_wanen`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-[#8B5A2B] font-bold block mb-1">ስለቸርነትህ</label>
-                                  <input type="number" value={kignitScores[student.id]?.[`${inst}_silechernetih`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_silechernetih`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-sm font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C] shadow-sm">
-                                  ድምር: {(Number(kignitScores[student.id]?.[`${inst}_selamta`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_wanen`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_silechernetih`]) || 0)}
-                                </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_selamta`]) || 0) + (Number(s[`${inst}_wanen`]) || 0) + (Number(s[`${inst}_silechernetih`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={14} className="inline mr-1"/> መዝግብ</button>
-                              </div>
-                              
-                              <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-dashed border-[#D2B48C]">
-                                  {instStatus === 'active' ? (
-                                    <>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <Award size={12}/> ምረቅ
-                                      </button>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <UserMinus size={12}/> አቋርጧል
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                      <XCircle size={12}/> ወደ ትምህርት መልስ
-                                    </button>
-                                  )}
-                              </div>
-                           </div>
-                        ) : (inst === 'ክራር' || inst === 'ማሲንቆ') ? (
-                           <div className="flex-1 bg-amber-50/50 p-3 rounded-xl border border-[#D2B48C] space-y-2">
-                              <span className="text-xs font-black text-[#5C4033] block border-b border-dashed border-[#D2B48C] pb-1 mb-2"> የ {inst} ቅኝት ውጤት </span>
-                              <div className="grid grid-cols-4 gap-2">
-                                {['tizita', 'anchihoye', 'bati_minor', 'ambasel'].map(k => (
-                                  <div key={k}>
-                                    <label className="text-xs text-[#8B5A2B] font-bold block mb-1 truncate">{k === 'tizita' ? 'ትዝታ' : k === 'anchihoye' ? 'አንቺሆዬ' : k === 'bati_minor' ? 'ባቲ' : 'አምባሰል'}</label>
-                                    <input type="number" value={kignitScores[student.id]?.[`${inst}_${k}`] || ''} onChange={(e) => setKignitScores({...kignitScores, [student.id]: {...(kignitScores[student.id] || {}), [`${inst}_${k}`]: e.target.value}})} className="w-full px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex justify-between items-center pt-2">
-                                <span className="text-sm font-black text-[#3E2723] bg-white px-2 py-1 rounded-lg border border-[#D2B48C] shadow-sm">
-                                  ድምር: {(Number(kignitScores[student.id]?.[`${inst}_tizita`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_anchihoye`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_bati_minor`]) || 0) + (Number(kignitScores[student.id]?.[`${inst}_ambasel`]) || 0)}
-                                </span>
-                                <button onClick={() => { const s = kignitScores[student.id] || {}; const total = (Number(s[`${inst}_tizita`]) || 0) + (Number(s[`${inst}_anchihoye`]) || 0) + (Number(s[`${inst}_bati_minor`]) || 0) + (Number(s[`${inst}_ambasel`]) || 0); handleExamScoreSubmit(student.id, total, s); }} className="px-4 py-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"><Check size={14} className="inline mr-1"/> መዝግብ</button>
-                              </div>
-                              
-                              <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-dashed border-[#D2B48C]">
-                                  {instStatus === 'active' ? (
-                                    <>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <Award size={12}/> ምረቅ
-                                      </button>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <UserMinus size={12}/> አቋርጧል
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                      <XCircle size={12}/> ወደ ትምህርት መልስ
-                                    </button>
-                                  )}
-                              </div>
-                           </div>
-                        ) : (
-                           <div className="flex-1 flex flex-col justify-between bg-amber-50/60 p-3 rounded-xl border border-[#D2B48C] shadow-sm">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-black text-[#5C4033]"> የ {inst} ውጤት (%)</span>
-                                <div className="flex items-center gap-2">
-                                   <input type="number" placeholder="ውጤት" value={tempScores[student.id]?.[inst] || ''} onChange={(e) => setTempScores({ ...tempScores, [student.id]: {...(tempScores[student.id] || {}), [inst]: e.target.value} })} className="w-16 px-2 py-1 bg-white border border-[#D2B48C] rounded-lg text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" />
-                                   <button onClick={() => { const enteredScore = tempScores[student.id]?.[inst]; if (enteredScore) handleExamScoreSubmit(student.id, enteredScore); }} className="p-1.5 bg-[#8B5A2B] hover:bg-[#5C4033] text-white rounded-lg transition-all shadow-sm active:scale-95"><Check size={14} /></button>
-                                </div>
-                              </div>
-
-                              <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-dashed border-[#D2B48C]">
-                                  {instStatus === 'active' ? (
-                                    <>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'completed')} className="bg-[#E8F5E9] hover:bg-green-100 text-[#2E7D32] border border-[#A5D6A7] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <Award size={12}/> ምረቅ
-                                      </button>
-                                      <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'dropped')} className="bg-[#FFEBEE] hover:bg-red-100 text-[#C62828] border border-[#EF9A9A] px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                        <UserMinus size={12}/> አቋርጧል
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button onClick={() => setInstrumentStatusWithConfirm(student, inst, 'active')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-sm">
-                                      <XCircle size={12}/> ወደ ትምህርት መልስ
-                                    </button>
-                                  )}
-                              </div>
-                           </div>
-                        )}
-                     </div>
-                   )
-                })}
-              </div>
-
-              <div className="flex justify-end mt-3 pt-3 border-t border-gray-100">
-                <button onClick={() => askToDeleteStudent(student)} className="px-3 py-1.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-red-100 text-xs font-bold flex items-center gap-1">
-                  <Trash2 size={14} /> ተማሪውን ሰርዝ (Delete)
-                </button>
-              </div>
-            </div>
-          ))}
-          {filteredInfoStudents.length === 0 && <p className="text-center text-gray-400 italic text-sm py-8">በዚህ ክፍል የተመዘገበ ተማሪ አልተገኘም።</p>}
-        </div>
-      </div>
-    );
-  };
-
-  const renderLessonsView = () => {
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="text-center mb-4 border-b border-[#D2B48C] pb-4">
-          <h2 className="text-2xl font-black text-[#3E2723] font-serif flex items-center justify-center gap-1.5">
-            <ListMusic className="w-6 h-6 text-[#8B5A2B]" /> አታኦስ
-          </h2>
-          <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የትምህርት ቤት ማሰልጠኛ መመሪያ (Lesson Plan) </p>
-        </div>
-
-        <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
-          {instrumentsList.map(inst => (
-            <button
-              key={inst}
-              onClick={() => setSelectedLessonInstrument(inst)}
-              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border ${
-                selectedLessonInstrument === inst 
-                  ? 'bg-[#8B5A2B] text-white border-[#5C4033]' 
-                  : 'bg-white text-[#5C4033] border-[#D2B48C] hover:bg-[#FAF3E0]'
-              }`}
-            >
-              {inst}
-            </button>
-          ))}
-        </div>
-
-        <button onClick={addLesson} className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#8B5A2B] rounded-2xl text-white font-black flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
-          <Plus size={18}/> አዲስ የ {selectedLessonInstrument} ትምህርት ጨምር
-        </button>
-
-        <div className="space-y-4 mt-2">
-          {lessons.filter(l => l.instrument === selectedLessonInstrument).length === 0 && (
-            <div className="text-center py-8 bg-white rounded-3xl border-2 border-dashed border-[#D2B48C] text-[#8B5A2B]">
-              <p className="text-xs font-bold">ለ{selectedLessonInstrument} የተመዘገበ ትምህርት የለም።</p>
-              <p className="text-[10px] mt-1">አዲስ ለመጨመር ከላይ ያለውን ቁልፍ ይጫኑ።</p>
-            </div>
-          )}
-
-          {lessons.filter(l => l.instrument === selectedLessonInstrument).sort((a, b) => a.id - b.id).map((lesson, idx) => (
-            <div key={lesson.id} className="bg-white rounded-3xl p-5 border border-[#EADDCA] shadow-md relative overflow-hidden group">
-              <div className="absolute -right-6 -bottom-6 opacity-[0.03] text-[#8B5A2B]"><Music size={100} /></div>
-              
-              {isEditingLesson === lesson.id ? (
-                <div className="space-y-3 relative z-10">
-                  <input 
-                    className="w-full p-3 border-2 border-[#D2B48C] rounded-xl text-sm font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B]" 
-                    value={editLessonForm.title} 
-                    onChange={e => setEditLessonForm({...editLessonForm, title: e.target.value})} 
-                    placeholder="የትምህርቱ ርዕስ (ምሳሌ፡ 1ኛ ሳምንት - የጣት አደራደር)"
-                  />
-                  <textarea 
-                    className="w-full p-3 border-2 border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:border-[#8B5A2B] min-h-[80px]" 
-                    value={editLessonForm.content} 
-                    onChange={e => setEditLessonForm({...editLessonForm, content: e.target.value})} 
-                    placeholder="የትምህርቱ ዝርዝር መረጃ..."
-                  />
-                  <div className="flex gap-2 pt-2">
-                    <button onClick={() => updateLesson(lesson.id)} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-xs font-bold shadow-md">አስቀምጥ</button>
-                    <button onClick={() => setIsEditingLesson(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold border border-gray-300">ተወው</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative z-10">
-                  <div className="flex items-center space-x-3 border-b-2 border-dashed border-[#EADDCA] pb-3 mb-3">
-                    <div className="bg-[#FAF3E0] w-8 h-8 rounded-full flex items-center justify-center text-[#8B5A2B] font-black border border-[#D2B48C] flex-shrink-0">
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-black text-sm text-[#3E2723]">{lesson.title}</h3>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[#5C4033] font-bold leading-relaxed mb-4">{lesson.content}</p>
-                  
-                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button onClick={() => { setIsEditingLesson(lesson.id); setEditLessonForm({title: lesson.title, content: lesson.content}); }} className="flex items-center gap-1 text-[#8B5A2B] text-xs font-black bg-amber-50 px-3 py-1.5 rounded-lg border border-[#D2B48C]">
-                      <Edit size={14}/> አስተካክል
-                    </button>
-                    <button onClick={() => deleteLesson(lesson.id)} className="flex items-center gap-1 text-red-600 text-xs font-black bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
-                      <Trash2 size={14}/> አጥፋ
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderAttendanceView = () => {
-    let filteredStudents = activeStudents.filter(s => 
-      s.name.toLowerCase().includes(attendanceSearch.toLowerCase()) || 
-      (s.studentNo && s.studentNo.includes(attendanceSearch))
-    );
-
-    if (attendanceFilter === 'present') {
-      filteredStudents = filteredStudents.filter(s => s.attendance?.[currentPeriodKey]?.[selectedDay]);
-    } else if (attendanceFilter === 'absent') {
-      filteredStudents = filteredStudents.filter(s => !s.attendance?.[currentPeriodKey]?.[selectedDay]);
+  const renderInventoryView = () => {
+    let filteredInventory = inventory.filter(item => item.name.toLowerCase().includes(inventorySearch.toLowerCase()));
+    
+    if (inventoryFilter !== 'all') {
+      filteredInventory = filteredInventory.filter(item => item.category === inventoryFilter);
     }
 
     return (
       <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center mb-2 border-b border-[#D2B48C] pb-4">
           <div>
-            <h2 className="text-xl font-black text-[#3E2723] font-serif"> መገኘት መቆጣጠሪያ </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የተማሪዎች ዕለታዊ ክትትል መመዝገቢያ </p>
+            <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center gap-1.5">
+              <Package className="w-5 h-5 text-[#8B5A2B]" /> የንብረት አስተዳደር
+            </h2>
+            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> የመጋዘን ክምችት እና ሽያጭ </p>
           </div>
-          <button onClick={() => setReportConfig({show: true, type: 'attendance', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#8B5A2B] text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-[#5C4033] border border-[#D4AF37] transition-colors">
-            <Printer size={14} /> ሪፖርት
+          <button onClick={() => setIsSalesHistoryOpen(true)} className="flex items-center gap-1 bg-white text-[#8B5A2B] px-3 py-2 rounded-xl text-[10px] font-black shadow-sm border border-[#D2B48C] hover:bg-[#FAF3E0] transition-colors">
+            <History size={14} /> የሽያጭ ታሪክ
           </button>
         </div>
 
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1">
-          <button onClick={() => setAttendanceFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም</button>
-          <button onClick={() => setAttendanceFilter('present')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'present' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የተገኙ ብቻ</button>
-          <button onClick={() => setAttendanceFilter('absent')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${attendanceFilter === 'absent' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልተገኙ ብቻ</button>
+        <button onClick={() => { setEditingInventory(null); setInventoryForm({ name: '', category: 'መሳሪያዎች', quantity: '', price: '' }); setIsAddInventoryOpen(true); }} className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#8B5A2B] rounded-2xl text-white font-black flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+          <Plus size={18}/> አዲስ ዕቃ ወደ መጋዘን አስገባ
+        </button>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white p-3 rounded-2xl border border-[#EADDCA] shadow-sm flex flex-col items-center text-center">
+            <Box size={18} className="text-[#8B5A2B] mb-1"/>
+            <span className="text-lg font-black text-[#3E2723]">{totalInventoryStock}</span>
+            <span className="text-[9px] font-bold text-gray-500 mt-0.5">ጠቅላላ ክምችት</span>
+          </div>
+          <div className={`p-3 rounded-2xl border shadow-sm flex flex-col items-center text-center ${lowStockItemsCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#EADDCA]'}`}>
+            <AlertTriangle size={18} className={`${lowStockItemsCount > 0 ? 'text-red-500' : 'text-gray-400'} mb-1`}/>
+            <span className={`text-lg font-black ${lowStockItemsCount > 0 ? 'text-red-700' : 'text-[#3E2723]'}`}>{lowStockItemsCount}</span>
+            <span className={`text-[9px] font-bold mt-0.5 ${lowStockItemsCount > 0 ? 'text-red-600' : 'text-gray-500'}`}>ሊያልቁ የተቃረቡ</span>
+          </div>
+          <div className="bg-green-50 p-3 rounded-2xl border border-green-200 shadow-sm flex flex-col items-center text-center">
+            <TrendingUp size={18} className="text-green-600 mb-1"/>
+            <span className="text-lg font-black text-green-800">{totalSalesRevenue}</span>
+            <span className="text-[9px] font-bold text-green-700 mt-0.5">የሽያጭ ገቢ (ብር)</span>
+          </div>
         </div>
 
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-3 gap-2">
-          <div>
-            <label className="block text-[9px] font-black text-[#8B5A2B] mb-1">ዓ.ም፦</label>
-            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-1.5 px-1 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
-          </div>
-          <div>
-            <label className="block text-[9px] font-black text-[#8B5A2B] mb-1">ወር፦</label>
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-1.5 px-1 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select>
-          </div>
-          <div>
-            <label className="block text-[9px] font-black text-[#8B5A2B] mb-1">ቀን፦</label>
-            <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-1.5 px-1 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{Array.from({ length: 30 }, (_, i) => i + 1).map(day => <option key={day} value={day}>{day}</option>)}</select>
-          </div>
+        <div className="flex bg-[#FAF3E0] p-1.5 rounded-2xl border-2 border-[#D2B48C] gap-1 overflow-x-auto hide-scrollbar">
+          <button onClick={() => setInventoryFilter('all')} className={`flex-shrink-0 px-4 py-2 text-[10px] font-black rounded-lg transition-colors ${inventoryFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> ሁሉም </button>
+          <button onClick={() => setInventoryFilter('መሳሪያዎች')} className={`flex-shrink-0 px-4 py-2 text-[10px] font-black rounded-lg transition-colors ${inventoryFilter === 'መሳሪያዎች' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> መሳሪያዎች </button>
+          <button onClick={() => setInventoryFilter('መለዋወጫዎች')} className={`flex-shrink-0 px-4 py-2 text-[10px] font-black rounded-lg transition-colors ${inventoryFilter === 'መለዋወጫዎች' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> መለዋወጫዎች </button>
+          <button onClick={() => setInventoryFilter('መፃህፍት')} className={`flex-shrink-0 px-4 py-2 text-[10px] font-black rounded-lg transition-colors ${inventoryFilter === 'መፃህፍት' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B]/80 hover:bg-white/50'}`}> መፃህፍት </button>
         </div>
 
         <div className="relative mb-2">
           <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={attendanceSearch} onChange={(e) => setAttendanceSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
+          <input type="text" placeholder="የዕቃውን ስም ይፈልጉ..." value={inventorySearch} onChange={(e) => setInventorySearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white/95 border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
         </div>
 
         <div className="space-y-3">
-          {filteredStudents.map(student => {
-            const isPresent = student.attendance?.[currentPeriodKey]?.[selectedDay] || false;
-            return (
-              <div key={student.id} className="flex items-center justify-between bg-white rounded-3xl shadow-md border-2 border-[#EADDCA] p-4">
-                <div onClick={() => setSelectedStudentProfile(student)} className="flex items-center space-x-4 cursor-pointer">
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-[#F5E6D3] rounded-2xl flex items-center justify-center border-2 border-[#D2B48C] overflow-hidden">
-                      {student.photo ? <img src={student.photo} alt="" className="w-full h-full object-cover"/> : <User size={20} className="text-[#8B5A2B]"/>}
-                    </div>
-                    <div className="absolute -bottom-1 -right-2 bg-[#3E2723] border border-[#D4AF37] text-[#FAF3E0] text-[9px] font-black px-1.5 py-0.5 rounded shadow">#{student.studentNo}</div>
+          {filteredInventory.map(item => {
+             const isLowStock = item.quantity < 5;
+             return (
+               <div key={item.id} className={`bg-white rounded-3xl p-4 border-2 shadow-sm ${isLowStock ? 'border-red-300' : 'border-[#EADDCA]'}`}>
+                 <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-3">
+                   <div>
+                     <h3 className="font-extrabold text-[#3E2723] text-sm mb-1">{item.name}</h3>
+                     <span className="bg-[#FAF3E0] text-[#8B5A2B] border border-[#D2B48C] px-2 py-0.5 rounded text-[9px] font-bold">{item.category}</span>
+                   </div>
+                   <div className="text-right">
+                     <span className="block font-black text-[#8B5A2B] text-sm">{item.price} ብር</span>
+                     <span className={`text-[10px] font-bold mt-1 inline-block px-2 py-0.5 rounded ${isLowStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>ክምችት፦ {item.quantity}</span>
+                   </div>
+                 </div>
+                 
+                 <div className="flex gap-2">
+                    <button onClick={() => setSellModalData({item, sellQty: ''})} className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-2 rounded-xl text-xs font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1">
+                      <ShoppingCart size={14}/> ሽጥ
+                    </button>
+                    <button onClick={() => setRestockModalData({item, addQty: ''})} className="flex-1 bg-blue-50 text-blue-700 border border-blue-200 py-2 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center justify-center gap-1">
+                      <PlusCircle size={14}/> ገቢ አድርግ
+                    </button>
+                    <button onClick={() => {setEditingInventory(item); setInventoryForm({name: item.name, category: item.category, quantity: item.quantity, price: item.price}); setIsAddInventoryOpen(true);}} className="p-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
+                      <Edit size={16}/>
+                    </button>
+                    <button onClick={() => handleDeleteInventory(item)} className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors">
+                      <Trash2 size={16}/>
+                    </button>
+                 </div>
+               </div>
+             )
+          })}
+          {filteredInventory.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-8 font-bold bg-white rounded-2xl border border-[#D2B48C]"> በዚህ ማጣሪያ የተገኘ ዕቃ የለም። </p>}
+        </div>
+      </div>
+    );
+  };
+
+  const renderInventoryModals = () => {
+    return (
+      <>
+        {isAddInventoryOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[300] animate-fade-in">
+            <div className="bg-[#FAF3E0] rounded-3xl w-full max-w-md flex flex-col border-2 border-[#D2B48C] shadow-2xl relative overflow-hidden">
+               <div className="bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-4 flex items-center justify-between border-b-4 border-[#D4AF37]">
+                 <div className="flex items-center gap-2"><Package size={18} className="text-[#D4AF37]" /><h3 className="font-extrabold text-sm font-serif text-[#FFF8E7]">{editingInventory ? 'ንብረት ማስተካከያ' : 'አዲስ ንብረት መመዝገቢያ'}</h3></div>
+                 <button onClick={() => {setIsAddInventoryOpen(false); setEditingInventory(null);}} className="p-1.5 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={16} /></button>
+               </div>
+               <form onSubmit={handleSaveInventory} className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-[#5C4033] mb-1">የዕቃው ስም <span className="text-red-500">*</span></label>
+                    <input type="text" required value={inventoryForm.name} onChange={e=>setInventoryForm({...inventoryForm, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]" placeholder="ምሳሌ፡ የበገና ክር (10 ፍሬ)"/>
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-[#3E2723] text-sm">{student.name}</h3>
-                    <p className="text-[10px] text-gray-500 font-bold">{student.chosenDay} | {student.chosenTime}</p>
+                    <label className="block text-[10px] font-black text-[#5C4033] mb-1">ዘርፍ</label>
+                    <select value={inventoryForm.category} onChange={e=>setInventoryForm({...inventoryForm, category: e.target.value})} className="w-full px-3 py-2 bg-white border border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]">
+                      <option value="መሳሪያዎች">መሳሪያዎች (እንደ በገና፣ ክራር)</option>
+                      <option value="መለዋወጫዎች">መለዋወጫዎች (ክር፣ መቃኛ...)</option>
+                      <option value="መፃህፍት">መፃህፍት እና ሞጁሎች</option>
+                    </select>
                   </div>
-                </div>
-                <button 
-                  onClick={() => handleToggleAttendanceWithConfirm(student, currentPeriodKey, selectedDay)} 
-                  className={`flex items-center justify-center w-11 h-11 rounded-full transition-all ${isPresent ? 'bg-green-100 text-[#2E7D32] border-2 border-green-400' : 'bg-gray-50 text-gray-400 border-2 border-gray-200'}`}
-                >
-                  {isPresent ? <CheckCircle size={26} /> : <div className="w-5 h-5 rounded-full border-2 border-gray-300" />}
-                </button>
-              </div>
-            );
-          })}
-          {filteredStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-4 font-bold"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
-        </div>
-      </div>
-    );
-  };
-
-  const renderPaymentsView = () => {
-    let filteredPaymentStudents = activeStudents.filter(s => s.name.toLowerCase().includes(paymentSearch.toLowerCase()) || (s.studentNo && s.studentNo.includes(paymentSearch)));
-
-    if (paymentFilter === 'paid') {
-      filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-          const insts = parseInstruments(s.instrumentType);
-          return insts.every(inst => {
-              const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
-              return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
-          });
-      });
-    } else if (paymentFilter === 'unpaid') {
-      filteredPaymentStudents = filteredPaymentStudents.filter(s => {
-          const insts = parseInstruments(s.instrumentType);
-          return insts.some(inst => {
-              const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
-              return status === 'UNPAID';
-          });
-      });
-    }
-
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="flex justify-between items-center mb-2">
-          <div><h2 className="text-xl font-black text-[#3E2723] font-serif"> የክፍያ ቁጥጥር መዝገብ </h2><p className="text-xs text-[#8B5A2B] font-bold mt-1"> ወርሃዊ መዋጮ መከታተያ ({selectedMonth} {selectedYear}) </p></div>
-          <button onClick={() => setReportConfig({show: true, type: 'payment', statusFilter: 'all'})} className="flex items-center gap-1 bg-[#D4AF37] hover:bg-[#B8860B] text-[#2E1A05] px-3 py-2 rounded-lg text-xs font-black shadow-md border border-[#8B5A2B] transition-colors"><Printer size={14} /> ሪፖርት</button>
-        </div>
-
-        <div className="flex bg-[#FAF3E0] p-1 rounded-2xl border-2 border-[#D2B48C] gap-1 shadow-sm">
-          <button onClick={() => setPaymentFilter('all')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'all' ? 'bg-[#8B5A2B] text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ሁሉም ({activeStudents.length})</button>
-          <button onClick={() => setPaymentFilter('paid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'paid' ? 'bg-green-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>የከፈሉ/ቀን ያልደረሰ</button>
-          <button onClick={() => setPaymentFilter('unpaid')} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${paymentFilter === 'unpaid' ? 'bg-red-700 text-white shadow-sm' : 'text-[#8B5A2B] hover:bg-white/50'}`}>ያልከፈሉ</button>
-        </div>
-
-        <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D2B48C] grid grid-cols-2 gap-3 shadow-sm">
-          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> ዓመተ ምሕረት፦ </label><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
-          <div><label className="block text-[10px] font-black text-[#8B5A2B] mb-1"> የዕለት ወር፦ </label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full bg-white border border-[#D2B48C] text-[#5C4033] font-bold py-2 px-3 rounded-xl text-xs focus:ring-1 focus:ring-[#8B5A2B]">{ethiopianMonths.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
-        </div>
-
-        <div className="relative mb-2">
-          <Search size={18} className="absolute left-3 top-3.5 text-[#8B5A2B]/60" />
-          <input type="text" placeholder="በስም ወይም በመለያ ቁጥር ይፈልጉ..." value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border-2 border-[#EADDCA] rounded-xl text-sm font-bold shadow-sm" />
-        </div>
-        
-        <div className="space-y-4">
-          {filteredPaymentStudents.map(student => {
-            const insts = parseInstruments(student.instrumentType);
-            
-            let isAnyUnpaid = false;
-            let isAllPaidOrScholar = true;
-
-            insts.forEach(inst => {
-                const st = getPaymentStatus(student, selectedYear, selectedMonth, inst);
-                if (st === 'UNPAID') isAnyUnpaid = true;
-                if (st !== 'PAID' && st !== 'SCHOLARSHIP') isAllPaidOrScholar = false;
-            });
-
-            const iconBgClass = isAnyUnpaid ? 'bg-red-50 border-red-300 text-red-600' :
-                                isAllPaidOrScholar ? 'bg-green-50 border-green-300 text-green-600' :
-                                'bg-yellow-50 border-yellow-300 text-yellow-600';
-            
-            return (
-              <div key={student.id} className="flex flex-col p-4 bg-white rounded-3xl shadow-md border-[3px] border-[#D4AF37]/50 hover:border-[#8B5A2B] transition-all">
-                <div className="flex items-center justify-between w-full mb-1">
-                  <div 
-                    onClick={() => { setSelectedStudentForHistory(student); setHistoryInstTab(insts[0]); }}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 -ml-1 rounded-xl transition-colors flex-1"
-                    title="የክፍያ ታሪክ ለማየት እና ለማስተካከል እዚህ ይንኩ"
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${iconBgClass}`}>
-                      <CreditCard size={20} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-[#5C4033] mb-1">የመነሻ ብዛት {editingInventory && '(አሁን ያለው)'}</label>
+                      <input type="number" min="0" required value={inventoryForm.quantity} onChange={e=>setInventoryForm({...inventoryForm, quantity: e.target.value})} className="w-full px-3 py-2 bg-white border border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]"/>
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-[#3E2723] text-sm flex items-center gap-1">
-                        {student.name} <History size={12} className="text-[#8B5A2B] opacity-70"/>
-                      </h3>
-                      <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                        {insts.join('፣ ')} <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[9px] ml-1">#{student.studentNo}</span>
-                      </p>
+                      <label className="block text-[10px] font-black text-[#5C4033] mb-1">የአንዱ መሸጫ ዋጋ (ብር) <span className="text-red-500">*</span></label>
+                      <input type="number" min="0" required value={inventoryForm.price} onChange={e=>setInventoryForm({...inventoryForm, price: e.target.value})} className="w-full px-3 py-2 bg-white border border-[#D2B48C] rounded-xl text-xs font-bold text-[#3E2723] focus:outline-none focus:ring-1 focus:ring-[#8B5A2B]"/>
                     </div>
                   </div>
-                </div>
-                
-                <div className="space-y-3 border-t-4 border-[#8B5A2B]/20 pt-4 mt-2 rounded-t-sm">
-                  {insts.map(inst => {
-                     const status = getPaymentStatus(student, selectedYear, selectedMonth, inst);
-                     const amt = Number(student.paymentDetails?.[inst]?.amount || student.paymentAmount || 0);
-                     const pDate = getDueDayForMonth(student, parseInt(selectedYear, 10), ethiopianMonths.indexOf(selectedMonth), inst);
-                     
-                     let btnClass = '';
-                     let btnText = '';
-
-                     if (status === 'SCHOLARSHIP') {
-                        btnClass = 'bg-blue-100 text-blue-800 border-blue-400';
-                        btnText = 'ነፃ ተማሪ';
-                     } else if (status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE') {
-                        btnClass = 'bg-yellow-100 text-yellow-800 border-yellow-400 hover:bg-yellow-200';
-                        btnText = 'ገና አልደረሰም';
-                     } else if (status === 'PAID') {
-                        btnClass = 'bg-green-100 text-green-800 border-green-400 hover:bg-green-200';
-                        btnText = 'ከፍሏል ✓';
-                     } else {
-                        btnClass = 'bg-red-100 text-red-800 border-red-400 hover:bg-red-200';
-                        btnText = 'አልከፈለም ✗';
-                     }
-
-                     return (
-                        <div key={inst} className="flex justify-between items-center bg-white p-1">
-                           <div>
-                              <span className="font-bold text-[10px] text-[#3E2723]">{inst} </span>
-                              <span className="text-[9px] text-gray-500 ml-1">
-                                {status === 'SCHOLARSHIP' ? '(ነፃ)' : `(${amt} ብር | ቀን ${pDate})`}
-                              </span>
-                           </div>
-                           
-                           {status === 'SCHOLARSHIP' ? (
-                             <span className={`px-3 py-1.5 text-[9px] font-black rounded-lg border shadow-sm ${btnClass}`}>ነፃ ተማሪ</span>
-                           ) : (
-                             <button onClick={() => handleTogglePaymentWithConfirm(student, currentPeriodKey, inst)} className={`px-4 py-1.5 text-[9px] font-black rounded-lg border shadow-sm transition-colors active:scale-95 ${btnClass}`}>
-                                {btnText}
-                             </button>
-                           )}
-                        </div>
-                     )
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {filteredPaymentStudents.length === 0 && <p className="text-center text-[#8B5A2B] text-sm py-8 font-bold bg-white rounded-2xl border border-[#D2B48C]"> በዚህ ማጣሪያ የተገኘ ተማሪ የለም። </p>}
-        </div>
-      </div>
-    );
-  };
-
-  const renderInventoryView = () => {
-    return (
-      <div className="p-5 space-y-6 animate-fade-in pb-12 relative z-10">
-        <div className="flex justify-between items-center mb-2">
-          <div>
-            <h2 className="text-xl font-black text-[#3E2723] font-serif flex items-center gap-2">
-               <Package className="w-5 h-5 text-[#8B5A2B]" /> የዕቃ እና ሽያጭ መቆጣጠሪያ
-            </h2>
-            <p className="text-xs text-[#8B5A2B] font-bold mt-1"> በገና፣ ክራር እና ሌሎችም ዕቃዎች </p>
+                  <button type="submit" className="w-full mt-4 bg-gradient-to-r from-[#8B5A2B] to-[#5C4033] text-white py-3 rounded-xl text-xs font-black shadow-md transition-all active:scale-95"><Save size={14} className="inline mr-1"/> አስቀምጥ</button>
+               </form>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* መሸጫ እና መመዝገቢያ ፎርሞች */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* አዲስ ዕቃ ገቢ ማድረጊያ */}
-          <div className="bg-white p-4 rounded-3xl border-2 border-[#EADDCA] shadow-md">
-            <h3 className="font-extrabold text-[#3E2723] text-sm mb-3 border-b pb-2 flex items-center gap-1"><PlusCircle size={16} className="text-green-600"/> አዲስ ዕቃ ገቢ ማድረግ</h3>
-            <form onSubmit={handleAddProduct} className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-500">የዕቃው ዓይነት</label>
-                <select value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]">
-                  <option value="በገና">በገና</option>
-                  <option value="ክራር">ክራር</option>
-                  <option value="ከበሮ">ከበሮ</option>
-                  <option value="ማሲንቆ">ማሲንቆ</option>
-                  <option value="ዋሽንት">ዋሽንት</option>
-                  <option value="መለዋወጫ">መለዋወጫ (ጅማት/ክር/መቃ)</option>
-                  <option value="መጽሐፍ">መጽሐፍ (የዜማ/ጸሎት)</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500">ብዛት</label>
-                  <input type="number" min="1" value={newProduct.quantity} onChange={e => setNewProduct({...newProduct, quantity: Number(e.target.value)})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500">የአንዱ ዋጋ (ብር)</label>
-                  <input type="number" min="0" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} className="w-full p-2 border rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-[#8B5A2B] text-white py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-[#5C4033] active:scale-95 transition-all">ወደ ካዝና አስገባ</button>
-            </form>
+        {sellModalData && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[300] animate-fade-in">
+            <div className="bg-[#FAF3E0] rounded-3xl w-full max-w-sm flex flex-col border-2 border-[#D2B48C] shadow-2xl relative overflow-hidden">
+               <div className="bg-gradient-to-r from-green-700 to-green-900 text-white p-4 flex items-center justify-between border-b-4 border-green-500">
+                 <div className="flex items-center gap-2"><ShoppingCart size={18} className="text-green-200" /><h3 className="font-extrabold text-sm font-serif">የዕቃ ሽያጭ</h3></div>
+                 <button onClick={() => setSellModalData(null)} className="p-1.5 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={16} /></button>
+               </div>
+               <form onSubmit={handleSellConfirm} className="p-5 space-y-4">
+                  <div className="bg-green-50 p-3 rounded-xl border border-green-200 text-center">
+                    <p className="text-xs font-black text-[#3E2723]">{sellModalData.item.name}</p>
+                    <p className="text-[10px] text-gray-500 font-bold mt-1">በክምችት ያለው፡ <span className="text-green-700 font-black">{sellModalData.item.quantity} ፍሬ</span> | ዋጋ፡ <span className="text-[#8B5A2B] font-black">{sellModalData.item.price} ብር</span></p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-[#5C4033] mb-1 text-center">የሚሸጠው ብዛት</label>
+                    <div className="flex justify-center items-center gap-3">
+                       <button type="button" onClick={() => setSellModalData({...sellModalData, sellQty: Math.max(1, (parseInt(sellModalData.sellQty)||0)-1)})} className="p-2 bg-white rounded-full border shadow-sm text-gray-600 hover:bg-gray-50"><MinusCircle size={20}/></button>
+                       <input type="number" min="1" max={sellModalData.item.quantity} autoFocus required value={sellModalData.sellQty} onChange={e=>setSellModalData({...sellModalData, sellQty: e.target.value})} className="w-20 px-3 py-2 bg-white border-2 border-[#D2B48C] rounded-xl text-center text-lg font-black text-[#3E2723] focus:outline-none focus:border-green-600"/>
+                       <button type="button" onClick={() => setSellModalData({...sellModalData, sellQty: Math.min(sellModalData.item.quantity, (parseInt(sellModalData.sellQty)||0)+1)})} className="p-2 bg-white rounded-full border shadow-sm text-gray-600 hover:bg-gray-50"><PlusCircle size={20}/></button>
+                    </div>
+                  </div>
+                  <div className="border-t border-dashed border-[#D2B48C] pt-3 flex justify-between items-center bg-white p-3 rounded-xl shadow-inner">
+                    <span className="text-xs font-bold text-gray-500">ጠቅላላ የሽያጭ ዋጋ፡</span>
+                    <span className="text-sm font-black text-green-700">{(parseInt(sellModalData.sellQty)||0) * sellModalData.item.price} ብር</span>
+                  </div>
+                  <button type="submit" disabled={!sellModalData.sellQty || parseInt(sellModalData.sellQty)<=0} className="w-full mt-2 bg-green-600 text-white py-3 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 disabled:opacity-50"><CheckCircle size={14} className="inline mr-1"/> ሸጥኩ (Confirm)</button>
+               </form>
+            </div>
           </div>
+        )}
 
-          {/* መሸጫ ፎርም */}
-          <div className="bg-[#FAF3E0] p-4 rounded-3xl border-2 border-[#D4AF37] shadow-md">
-             <h3 className="font-extrabold text-[#3E2723] text-sm mb-3 border-b border-[#D2B48C] pb-2 flex items-center gap-1"><ShoppingCart size={16} className="text-[#8B5A2B]"/> ዕቃ መሸጫ</h3>
-             <form onSubmit={handleSellProduct} className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-500">ከካዝና ውስጥ ይምረጡ</label>
-                <select value={sellForm.itemId} onChange={e => setSellForm({...sellForm, itemId: e.target.value})} className="w-full p-2 border border-[#D2B48C] rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required>
-                  <option value="">-- ዕቃ ይምረጡ --</option>
-                  {inventory.filter(i => i.quantity > 0).map(item => (
-                    <option key={item.id} value={item.id}>{item.name} (ቀሪ: {item.quantity}) - ዋጋ: {item.price} ብር</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-500">የሚሸጠው ብዛት</label>
-                <input type="number" min="1" value={sellForm.quantity} onChange={e => setSellForm({...sellForm, quantity: Number(e.target.value)})} className="w-full p-2 border border-[#D2B48C] rounded-xl text-xs font-bold focus:ring-1 focus:ring-[#8B5A2B]" required />
-              </div>
-              <button type="submit" className="w-full bg-green-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-md hover:bg-green-800 active:scale-95 transition-all">ሽያጩን አረጋግጥ</button>
-            </form>
+        {restockModalData && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[300] animate-fade-in">
+            <div className="bg-[#FAF3E0] rounded-3xl w-full max-w-sm flex flex-col border-2 border-[#D2B48C] shadow-2xl relative overflow-hidden">
+               <div className="bg-gradient-to-r from-blue-700 to-blue-900 text-white p-4 flex items-center justify-between border-b-4 border-blue-400">
+                 <div className="flex items-center gap-2"><Archive size={18} className="text-blue-200" /><h3 className="font-extrabold text-sm font-serif">ክምችት መጨመሪያ (Restock)</h3></div>
+                 <button onClick={() => setRestockModalData(null)} className="p-1.5 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={16} /></button>
+               </div>
+               <form onSubmit={handleRestockConfirm} className="p-5 space-y-4">
+                  <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center">
+                    <p className="text-xs font-black text-[#3E2723]">{restockModalData.item.name}</p>
+                    <p className="text-[10px] text-gray-500 font-bold mt-1">የአሁኑ ክምችት፡ <span className="text-blue-700 font-black">{restockModalData.item.quantity} ፍሬ</span></p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-[#5C4033] mb-1 text-center">አዲስ የሚገባው ብዛት</label>
+                    <input type="number" min="1" autoFocus required value={restockModalData.addQty} onChange={e=>setRestockModalData({...restockModalData, addQty: e.target.value})} className="w-full px-3 py-3 bg-white border-2 border-[#D2B48C] rounded-xl text-center text-lg font-black text-[#3E2723] focus:outline-none focus:border-blue-600"/>
+                  </div>
+                  <div className="border-t border-dashed border-[#D2B48C] pt-3 flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-gray-500">አዲሱ አጠቃላይ ክምችት፡</span>
+                    <span className="text-xs font-black text-blue-800">{restockModalData.item.quantity + (parseInt(restockModalData.addQty)||0)} ፍሬ</span>
+                  </div>
+                  <button type="submit" disabled={!restockModalData.addQty || parseInt(restockModalData.addQty)<=0} className="w-full mt-2 bg-blue-600 text-white py-3 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 disabled:opacity-50"><Plus size={14} className="inline mr-1"/> ክምችት ጨምር</button>
+               </form>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* የክምችት (Inventory) ዝርዝር */}
-        <div className="bg-white rounded-3xl p-4 border border-[#EADDCA] shadow-sm">
-          <div className="flex justify-between items-center border-b border-[#EADDCA] pb-2 mb-3">
-             <h4 className="text-xs font-black text-[#8B5A2B] flex items-center"><Package size={14} className="mr-1"/> አሁን በካዝና ያሉ ክምችቶች</h4>
-             {isInventoryLoading && <Loader2 size={12} className="animate-spin text-[#8B5A2B]" />}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-             {inventory.map(item => (
-                <div key={item.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 bg-amber-100 text-amber-800 rounded-lg flex items-center justify-center font-black">{item.name.substring(0, 1)}</div>
+        {isSalesHistoryOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[250] animate-fade-in">
+            <div className="bg-[#FAF3E0] rounded-[32px] w-full max-w-md max-h-[85vh] flex flex-col border-2 border-[#D2B48C] shadow-2xl relative overflow-hidden">
+               <div className="bg-gradient-to-r from-[#3E2723] to-[#5C4033] text-white p-4 flex items-center justify-between border-b-4 border-[#D4AF37] relative z-10 flex-shrink-0">
+                 <div className="flex items-center gap-2"><History size={18} className="text-[#D4AF37]" /><h3 className="font-extrabold text-sm font-serif">የዕቃዎች ሽያጭ ታሪክ</h3></div>
+                 <button onClick={() => setIsSalesHistoryOpen(false)} className="p-1.5 bg-white/10 hover:bg-red-500/80 rounded-full transition-colors"><X size={16} /></button>
+               </div>
+               <div className="bg-green-50 border-b border-[#EADDCA] p-3 text-center flex-shrink-0 flex justify-between items-center">
+                  <span className="text-xs font-bold text-[#5C4033]">ጠቅላላ የሽያጭ ገቢ፦</span>
+                  <span className="text-base font-black text-green-800">{totalSalesRevenue} ብር</span>
+               </div>
+               <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                 {salesHistory.map((sale) => (
+                   <div key={sale.id} className="bg-white rounded-2xl p-3 border border-[#EADDCA] shadow-sm flex items-center justify-between">
                      <div>
-                        <p className="text-sm font-black text-[#3E2723]">{item.name}</p>
-                        <p className="text-[10px] text-gray-500 font-bold">ያለው ብዛት: <span className={item.quantity < 3 ? 'text-red-500 font-black' : 'text-green-600 font-black'}>{item.quantity}</span></p>
+                       <h4 className="font-extrabold text-[#3E2723] text-xs">{sale.item_name} <span className="text-gray-400 font-normal text-[9px]">({sale.category})</span></h4>
+                       <p className="text-[9px] text-gray-500 font-bold mt-1">የተሸጠው፡ <span className="text-[#8B5A2B]">{sale.quantity} ፍሬ</span> | ቀን፡ {sale.date ? formatEthDate(sale.date) : '-'}</p>
                      </div>
-                  </div>
-                  <div className="text-right">
-                     <p className="text-sm font-black text-[#8B5A2B]">{item.price} ብር</p>
-                  </div>
-                </div>
-             ))}
-             {inventory.length === 0 && !isInventoryLoading && <p className="text-xs text-gray-400 py-2">ምንም የተመዘገበ ዕቃ የለም።</p>}
-          </div>
-        </div>
-
-        {/* የሽያጭ ታሪክ */}
-        <div className="bg-white rounded-3xl p-4 border border-[#EADDCA] shadow-sm">
-          <h4 className="text-xs font-black text-[#8B5A2B] border-b border-[#EADDCA] pb-2 mb-3 flex items-center"><TrendingUp size={14} className="mr-1"/> የሽያጭ ታሪክ</h4>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-             {sales.map(sale => (
-                <div key={sale.id} className="flex justify-between items-center bg-[#F9F6F0] p-3 rounded-xl border border-[#EADDCA] text-xs shadow-sm">
-                   <div>
-                      <p className="font-bold text-[#3E2723]">{sale.inventory?.name || 'ያልታወቀ ዕቃ'} <span className="text-gray-500">(x{sale.quantity_sold})</span></p>
-                      <p className="text-[9px] text-gray-500 font-mono mt-0.5">{formatEthDate(sale.sale_date)}</p>
+                     <div className="bg-green-100 text-green-800 px-2 py-1 rounded-lg text-[10px] font-black border border-green-200">
+                        +{sale.total_price} ብር
+                     </div>
                    </div>
-                   <div className="font-black text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
-                      + {sale.total_price} ብር
-                   </div>
-                </div>
-             ))}
-             {sales.length === 0 && !isInventoryLoading && <p className="text-xs text-gray-400 py-2">የተመዘገበ ሽያጭ የለም።</p>}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderReportModal = () => {
-    if (!reportConfig.show) return null;
-
-    let displayedStudentsForReport = [...students];
-    if (reportConfig.statusFilter !== 'all') {
-      displayedStudentsForReport = students.filter(s => {
-          const insts = parseInstruments(s.instrumentType);
-          return insts.some(inst => {
-              const st = s.paymentDetails?.[inst]?.status || s.status;
-              return st === reportConfig.statusFilter;
-          });
-      });
-    }
-
-    const filterTitles = {
-      all: 'የሁሉም ተማሪዎች',
-      active: 'በትምህርት ገበታ ላይ ያሉ (Active) ተማሪዎች',
-      completed: 'ትምህርታቸውን ያጠናቀቁ (ምሩቃን)',
-      dropped: 'ትምህርት ያቋረጡ (የቆረጡ)'
-    };
-
-    return (
-      <div className="fixed inset-0 bg-white z-[150] overflow-y-auto hide-on-print-bg">
-        <div className="sticky top-0 bg-[#3E2723] text-white p-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shadow-md hide-on-print z-50 border-b-4 border-[#D4AF37]">
-          <div className="flex items-center space-x-2">
-            <BegenaIcon className="w-6 h-6 text-[#D4AF37]" />
-            <span className="font-bold font-serif text-[#FFF8E7] text-sm sm:text-base">
-              የክፍል ሪፖርት ማመንጫ ማሽን
-            </span>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-[#D4AF37] font-bold">ሪፖርት ለይቶ ማውጫ፦</span>
-            <div className="bg-[#FAF3E0]/15 p-1 rounded-lg flex gap-1 border border-white/20">
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'all'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'all' ? 'bg-[#8B5A2B] text-white' : 'text-gray-300 hover:text-white'}`}>ሁሉንም</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'active'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'active' ? 'bg-[#8B5A2B] text-white' : 'text-gray-300 hover:text-white'}`}>በመማር ላይ</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'dropped'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'dropped' ? 'bg-red-700 text-white' : 'text-gray-300 hover:text-white'}`}>የቆረጡ</button>
-              <button onClick={() => setReportConfig(prev => ({...prev, statusFilter: 'completed'}))} className={`px-2 py-1 rounded text-[10px] font-black transition-colors ${reportConfig.statusFilter === 'completed' ? 'bg-green-700 text-white' : 'text-gray-300 hover:text-white'}`}>ምሩቃን</button>
+                 ))}
+                 {salesHistory.length === 0 && <p className="text-center text-gray-400 font-bold text-xs py-8">ምንም የተመዘገበ የሽያጭ ታሪክ የለም።</p>}
+               </div>
             </div>
           </div>
-
-          <div className="flex gap-2 justify-end">
-            <button onClick={copyReportToClipboard} className="bg-[#8B5A2B] hover:bg-[#5C4033] px-3 py-2 rounded-lg text-xs font-bold flex items-center"><Copy size={14} className="mr-1"/> ኮፒ </button>
-            <button onClick={triggerWindowPrint} className="bg-[#006400] hover:bg-green-800 px-4 py-2 rounded-lg text-xs font-bold flex items-center"><Printer size={16} className="mr-1"/> አትም </button>
-            <button onClick={() => setReportConfig({show: false, type: 'general', statusFilter: 'all'})} className="bg-red-600 px-3 py-2 rounded-lg ml-2"><X size={16} /></button>
-          </div>
-        </div>
-        
-        <div id="printable-area" className="max-w-4xl mx-auto bg-white text-black p-8 font-serif">
-          <div className="text-center mb-8 border-b-2 border-black pb-4">
-            <div className="flex justify-center mb-2"><EthiopianCross className="w-10 h-10 text-[#8B5A2B]" /></div>
-            <h2 className="text-2xl font-black mb-1"> አታኦስ መንፈሳዊ የዜማ ማሰልጠኛ ተቋም </h2>
-            <h3 className="text-lg font-bold text-[#8B5A2B]">
-              {filterTitles[reportConfig.statusFilter]} - {reportConfig.type === 'general' ? 'አጠቃላይ ሪፖርት' : reportConfig.type === 'attendance' ? 'የመገኘት ሪፖርት' : reportConfig.type === 'payment' ? 'የክፍያ ሪፖርት' : 'የቅኝት ውጤት ሪፖርት'}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500"> ዓ.ም: {selectedYear} | ወር: {selectedMonth} | ቀን: {new Date().toLocaleDateString('am-ET')}</p>
-          </div>
-
-          {reportConfig.type === 'general' && (
-            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <h3 className="text-base font-black border-b border-gray-300 mb-3 pb-1"> ማጠቃለያ </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><span className="font-bold"> በዚህ ሪፖርት ላይ ያሉ ተማሪዎች ድምር:</span> {displayedStudentsForReport.length} ተማሪ</p>
-                  <p><span className="font-bold"> በመማር ላይ ያሉ ድምር:</span> {displayedStudentsForReport.filter(s => s.status === 'active').length}</p>
-                </div>
-                <div>
-                  <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0 || getPaymentStatus(s, selectedYear, selectedMonth) === 'CURRENT_NOT_DUE' || getPaymentStatus(s, selectedYear, selectedMonth) === 'FUTURE_NOT_DUE')).length}</p>
-                  <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <table className="w-full border-collapse border border-gray-300 text-left text-xs sm:text-sm">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700">
-                <th className="border border-gray-300 p-2"> መ.ቁ </th>
-                <th className="border border-gray-300 p-2"> ሙሉ ስም </th>
-                {reportConfig.type !== 'academic' && (
-                   <>
-                     <th className="border border-gray-300 p-2"> ስልክ </th>
-                     <th className="border border-gray-300 p-2"> የተመዘገቡበት ቀን </th>
-                   </>
-                )}
-                <th className="border border-gray-300 p-2"> መሳሪያ </th>
-                {reportConfig.type !== 'academic' && <th className="border border-gray-300 p-2"> የጊዜ ቆይታ </th>}
-                {reportConfig.type === 'general' && <th className="border border-gray-300 p-2 text-center"> ድምር ውጤት </th>}
-                {reportConfig.type === 'payment' && <th className="border border-gray-300 p-2 text-center"> የ {selectedMonth} ክፍያ </th>}
-                {reportConfig.type === 'attendance' && <th className="border border-gray-300 p-2 text-center"> መገኘት (ቀናት) </th>}
-                
-                {reportConfig.type === 'academic' && (
-                  <>
-                    <th className="border border-gray-300 p-2 text-left text-xs">የቅኝት ውጤት ዝርዝር</th>
-                    <th className="border border-gray-300 p-2 text-center text-xs">ድምር</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {displayedStudentsForReport.map((s, idx) => {
-                const monthAttendanceCount = s.attendance?.[currentPeriodKey] ? Object.values(s.attendance[currentPeriodKey]).filter(Boolean).length : 0;
-                const insts = parseInstruments(s.instrumentType);
-
-                return (
-                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 p-2 font-bold align-top">{s.studentNo}</td>
-                    <td className="border border-gray-300 p-2 font-bold align-top">{s.name}</td>
-                    {reportConfig.type !== 'academic' && (
-                       <>
-                         <td className="border border-gray-300 p-2 align-top">{s.phone}</td>
-                         <td className="border border-gray-300 p-2 font-mono text-[11px] align-top">{formatEthDate(s.registrationDate)}</td>
-                       </>
-                    )}
-                    
-                    <td className="border border-gray-300 p-2 text-[11px] font-bold text-gray-600 align-top">
-                       {insts.map((inst, i) => (
-                         <div key={inst} className={`py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
-                           {inst}
-                         </div>
-                       ))}
-                    </td>
-                    
-                    {reportConfig.type !== 'academic' && <td className="border border-gray-300 p-2 text-[11px] font-bold text-[#8B5A2B] align-top">
-                        {insts.map((inst, i) => (
-                           <div key={inst} className={`py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
-                             {s.paymentDetails?.[inst]?.duration || s.duration || '-'}
-                           </div>
-                        ))}
-                    </td>}
-                    
-                    {reportConfig.type === 'general' && (
-                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">{s.examResult ? `${s.examResult}%` : '-'}</td>
-                    )}
-
-                    {reportConfig.type === 'payment' && (
-                        <td className="border border-gray-300 p-2 text-[10px] font-black align-top">
-                            <div className="space-y-1">
-                               {insts.map(inst => {
-                                  const statusRep = getPaymentStatus(s, selectedYear, selectedMonth, inst);
-                                  return (
-                                     <div key={inst}>
-                                        <span className="text-gray-500 mr-1">{inst}:</span>
-                                        {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
-                                     </div>
-                                  )
-                               })}
-                            </div>
-                        </td>
-                    )}
-
-                    {reportConfig.type === 'attendance' && (
-                        <td className="border border-gray-300 p-2 font-bold text-center align-top">{monthAttendanceCount}</td>
-                    )}
-
-                    {reportConfig.type === 'academic' && (
-                        <>
-                          <td className="border border-gray-300 p-2 align-top">
-                             {insts.map((inst, i) => {
-                                 const ks = s.kignit_scores || kignitScores[s.id] || {};
-                                 let details = [];
-                                 if (inst === 'በገና') {
-                                     details = [
-                                       `ሰላምታ: ${ks[`${inst}_selamta`]||0}`,
-                                       `ዋኔን: ${ks[`${inst}_wanen`]||0}`,
-                                       `ቸርነትህ: ${ks[`${inst}_silechernetih`]||0}`
-                                     ];
-                                 } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
-                                     details = [
-                                       `ትዝታ: ${ks[`${inst}_tizita`]||0}`,
-                                       `አንቺሆዬ: ${ks[`${inst}_anchihoye`]||0}`,
-                                       `ባቲ: ${ks[`${inst}_bati_minor`]||0}`,
-                                       `አምባሰል: ${ks[`${inst}_ambasel`]||0}`
-                                     ];
-                                 } else {
-                                     details = [`ውጤት (በመቶኛ)`];
-                                 }
-                                 
-                                 return (
-                                   <div key={inst} className={`text-xs text-gray-700 py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
-                                     <div className="flex flex-wrap gap-x-3 gap-y-1">
-                                       {details.map((d, idx) => (
-                                         <span key={idx} className="bg-gray-100 px-2 py-0.5 rounded border border-gray-200 whitespace-nowrap">{d}</span>
-                                       ))}
-                                     </div>
-                                   </div>
-                                 )
-                             })}
-                          </td>
-                          
-                          <td className="border border-gray-300 p-2 align-top text-center">
-                             {insts.map((inst, i) => {
-                                 const ks = s.kignit_scores || kignitScores[s.id] || {};
-                                 let total = 0;
-                                 if (inst === 'በገና') {
-                                     total = (Number(ks[`${inst}_selamta`])||0) + (Number(ks[`${inst}_wanen`])||0) + (Number(ks[`${inst}_silechernetih`])||0);
-                                 } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
-                                     total = (Number(ks[`${inst}_tizita`])||0) + (Number(ks[`${inst}_anchihoye`])||0) + (Number(ks[`${inst}_bati_minor`])||0) + (Number(ks[`${inst}_ambasel`])||0);
-                                 } else {
-                                     total = tempScores[s.id]?.[inst] || s.examResult || 0;
-                                 }
-                                 
-                                 return (
-                                   <div key={inst} className={`text-sm font-black text-[#8B5A2B] py-1 flex items-center justify-center ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
-                                     {total}
-                                   </div>
-                                 )
-                             })}
-                          </td>
-                        </>
-                    )}
-                  </tr>
-                );
-              })}
-              {displayedStudentsForReport.length === 0 && (
-                <tr>
-                  <td colSpan="9" className="border border-gray-300 p-6 text-center text-gray-400 italic">የተመረጠውን ማጣሪያ የሚያሟላ የተማሪ መረጃ አልተገኘም።</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          
-          <div className="mt-16 flex justify-between items-center text-sm font-bold border-t-2 border-black pt-4">
-            <p> አታኦስ በገና አስተዳደር </p>
-            <p> ፊርማ: __________________</p>
-          </div>
-        </div>
-      </div>
+        )}
+      </>
     );
   };
 
@@ -2642,6 +1918,7 @@ export default function App() {
       {renderReportModal()}
       {renderPaymentHistoryModal()}
       {renderAiModal()}
+      {renderInventoryModals()}
 
       <div className="app-ui hide-on-print min-h-screen bg-[#FAF6EE] flex flex-col pb-24 relative overflow-x-hidden">
         <header className="bg-[#3E2723] text-white px-4 py-3 flex justify-between items-center border-b-4 border-[#D4AF37] shadow-md relative z-20">
@@ -2684,7 +1961,7 @@ export default function App() {
           </button>
         )}
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] px-2 py-2 flex justify-between items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#FAF3E0]/95 backdrop-blur-md border-t-4 border-[#8B5A2B] px-1 py-2 flex justify-between items-center z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.1)] overflow-x-auto hide-scrollbar">
           {[
             { id: 'dashboard', icon: Home, label: 'ዋና' },
             { id: 'students', icon: UserPlus, label: 'መዝግብ' },
@@ -2692,7 +1969,7 @@ export default function App() {
             { id: 'lessons', icon: ListMusic, label: 'አታኦስ' },
             { id: 'attendance', icon: CheckSquare, label: 'መገኘት' },
             { id: 'payments', icon: CreditCard, label: 'ክፍያ' },
-            { id: 'inventory', icon: Package, label: 'መሸጫ' },
+            { id: 'inventory', icon: Package, label: 'ንብረት' },
           ].map((item) => (
             <button 
               key={item.id} 
@@ -2700,15 +1977,16 @@ export default function App() {
                 setActiveTab(item.id);
                 if (item.id === 'attendance') setAttendanceFilter('all');
                 if (item.id === 'payments') setPaymentFilter('all');
+                if (item.id === 'inventory') setInventoryFilter('all');
               }} 
-              className={`flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-all duration-300 relative ${
+              className={`flex-shrink-0 flex flex-col items-center justify-center w-[52px] h-12 rounded-2xl transition-all duration-300 relative ${
                 activeTab === item.id 
                   ? 'bg-[#8B5A2B]/10 text-[#8B5A2B] transform -translate-y-1' 
                   : 'text-[#8D6E63] hover:bg-[#8B5A2B]/5 hover:text-[#5C4033]'
               }`}
             >
-              <item.icon size={20} className={activeTab === item.id ? "mb-0.5" : ""} />
-              <span className={`text-[9px] font-black transition-all ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>
+              <item.icon size={18} className={activeTab === item.id ? "mb-0.5" : ""} />
+              <span className={`text-[8px] sm:text-[9px] font-black transition-all ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>
                 {item.label}
               </span>
               {activeTab === item.id && (
