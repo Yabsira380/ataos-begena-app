@@ -2219,6 +2219,23 @@ export default function App() {
       dropped: 'ትምህርት ያቋረጡ (የቆረጡ)'
     };
 
+    // አንድ ተማሪ ከአንድ በላይ መሳሪያ ቢማርም እያንዳንዱን መሳሪያ ለየብቻ ለመቁጠር
+    // የተማሪውን የመሳሪያ ዝርዝር እንጠቀማለን።
+    const instrumentTotals = instrumentsList.reduce((totals, instrument) => {
+      totals[instrument] = displayedStudentsForReport.reduce((count, student) => {
+        const studentInstruments = parseInstruments(student.instrumentType);
+        return count + (studentInstruments.includes(instrument) ? 1 : 0);
+      }, 0);
+      return totals;
+    }, {});
+
+    // ይህ የሚያሳየው የመሳሪያ ምዝገባ ድምር ነው።
+    // ምሳሌ፦ አንድ ተማሪ በገና + ክራር ካለው ሁለቱም ይቆጠራሉ።
+    const totalInstrumentEnrollments = Object.values(instrumentTotals).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+
     return (
       <div className="fixed inset-0 bg-white z-[150] overflow-y-auto hide-on-print-bg">
         <div className="sticky top-0 bg-[#3E2723] text-white p-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shadow-md hide-on-print z-50 border-b-4 border-[#D4AF37]">
@@ -2268,6 +2285,27 @@ export default function App() {
                   <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0 || getPaymentStatus(s, selectedYear, selectedMonth) === 'CURRENT_NOT_DUE' || getPaymentStatus(s, selectedYear, selectedMonth) === 'FUTURE_NOT_DUE')).length}</p>
                   <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
                 </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-300">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-black">የዜማ መሳሪያ ተማሪዎች ድምር</p>
+                  <p className="font-black text-[#8B5A2B]">ጠቅላላ: {totalInstrumentEnrollments}</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                  {instrumentsList.map(instrument => (
+                    <div key={instrument} className="bg-white border border-gray-300 rounded-lg p-2 text-center">
+                      <div className="text-xs font-bold text-gray-600">{instrument}</div>
+                      <div className="text-xl font-black text-[#8B5A2B]">{instrumentTotals[instrument] || 0}</div>
+                      <div className="text-[9px] text-gray-500">ተማሪ</div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-2 text-[10px] text-gray-500 italic">
+                  * አንድ ተማሪ ከአንድ በላይ መሳሪያ ከተመዘገበ በእያንዳንዱ መሳሪያ ላይ ለብቻው ይቆጠራል።
+                </p>
               </div>
             </div>
           )}
