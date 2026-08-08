@@ -2219,23 +2219,6 @@ export default function App() {
       dropped: 'ትምህርት ያቋረጡ (የቆረጡ)'
     };
 
-    // አንድ ተማሪ ከአንድ በላይ መሳሪያ ቢማርም እያንዳንዱን መሳሪያ ለየብቻ ለመቁጠር
-    // የተማሪውን የመሳሪያ ዝርዝር እንጠቀማለን።
-    const instrumentTotals = instrumentsList.reduce((totals, instrument) => {
-      totals[instrument] = displayedStudentsForReport.reduce((count, student) => {
-        const studentInstruments = parseInstruments(student.instrumentType);
-        return count + (studentInstruments.includes(instrument) ? 1 : 0);
-      }, 0);
-      return totals;
-    }, {});
-
-    // ይህ የሚያሳየው የመሳሪያ ምዝገባ ድምር ነው።
-    // ምሳሌ፦ አንድ ተማሪ በገና + ክራር ካለው ሁለቱም ይቆጠራሉ።
-    const totalInstrumentEnrollments = Object.values(instrumentTotals).reduce(
-      (sum, count) => sum + count,
-      0
-    );
-
     return (
       <div className="fixed inset-0 bg-white z-[150] overflow-y-auto hide-on-print-bg">
         <div className="sticky top-0 bg-[#3E2723] text-white p-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shadow-md hide-on-print z-50 border-b-4 border-[#D4AF37]">
@@ -2282,30 +2265,16 @@ export default function App() {
                   <p><span className="font-bold"> በመማር ላይ ያሉ ድምር:</span> {displayedStudentsForReport.filter(s => s.status === 'active').length}</p>
                 </div>
                 <div>
-                  <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => s.status === 'active' && (s.payments[currentPeriodKey] || Number(s.paymentAmount || 0) === 0 || getPaymentStatus(s, selectedYear, selectedMonth) === 'CURRENT_NOT_DUE' || getPaymentStatus(s, selectedYear, selectedMonth) === 'FUTURE_NOT_DUE')).length}</p>
+                  <p><span className="font-bold"> ክፍያ የፈጸሙ/ቀን ያልደረሰ:</span> {displayedStudentsForReport.filter(s => {
+                    if (s.status !== 'active') return false;
+                    const insts = parseInstruments(s.instrumentType);
+                    return insts.every(inst => {
+                      const status = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+                      return status === 'PAID' || status === 'SCHOLARSHIP' || status === 'CURRENT_NOT_DUE' || status === 'FUTURE_NOT_DUE';
+                    });
+                  }).length}</p>
                   <p><span className="font-bold"> ትምህርት ያቋረጡ (የቆረጡ):</span> {displayedStudentsForReport.filter(s => s.status === 'dropped').length}</p>
                 </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-300">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="font-black">የዜማ መሳሪያ ተማሪዎች ድምር</p>
-                  <p className="font-black text-[#8B5A2B]">ጠቅላላ: {totalInstrumentEnrollments}</p>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                  {instrumentsList.map(instrument => (
-                    <div key={instrument} className="bg-white border border-gray-300 rounded-lg p-2 text-center">
-                      <div className="text-xs font-bold text-gray-600">{instrument}</div>
-                      <div className="text-xl font-black text-[#8B5A2B]">{instrumentTotals[instrument] || 0}</div>
-                      <div className="text-[9px] text-gray-500">ተማሪ</div>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="mt-2 text-[10px] text-gray-500 italic">
-                  * አንድ ተማሪ ከአንድ በላይ መሳሪያ ከተመዘገበ በእያንዳንዱ መሳሪያ ላይ ለብቻው ይቆጠራል።
-                </p>
               </div>
             </div>
           )}
@@ -2368,18 +2337,39 @@ export default function App() {
                     </td>}
                     
                     {reportConfig.type === 'general' && (
-                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">{s.examResult ? `${s.examResult}%` : '-'}</td>
+                        <td className="border border-gray-300 p-2 text-center font-black text-[#8B5A2B] align-top">
+                            {insts.map((inst, i) => {
+                                const ks = s.kignit_scores || kignitScores[s.id] || {};
+                                let total = 0;
+                                if (inst === 'በገና') {
+                                    total = (Number(ks[`${inst}_selamta`])||0) + (Number(ks[`${inst}_wanen`])||0) + (Number(ks[`${inst}_silechernetih`])||0);
+                                } else if (inst === 'ክራር' || inst === 'ማሲንቆ') {
+                                    total = (Number(ks[`${inst}_tizita`])||0) + (Number(ks[`${inst}_anchihoye`])||0) + (Number(ks[`${inst}_bati_minor`])||0) + (Number(ks[`${inst}_ambasel`])||0);
+                                } else {
+                                    total = tempScores[s.id]?.[inst] || s.examResult || 0;
+                                }
+                                return (
+                                    <div key={inst} className={`py-1 ${i !== insts.length - 1 ? 'border-b-2 border-dashed border-gray-300 mb-1' : ''}`}>
+                                        <span className="text-[10px] text-gray-500 mr-1">{inst}:</span> {total > 0 ? `${total}%` : '-'}
+                                    </div>
+                                );
+                            })}
+                        </td>
                     )}
 
                     {reportConfig.type === 'payment' && (
                         <td className="border border-gray-300 p-2 text-[10px] font-black align-top">
                             <div className="space-y-1">
-                               {insts.map(inst => {
+                               {insts.map((inst, i) => {
                                   const statusRep = getPaymentStatus(s, selectedYear, selectedMonth, inst);
+                                  const amt = Number(s.paymentDetails?.[inst]?.amount || s.paymentAmount || 0);
                                   return (
-                                     <div key={inst}>
+                                     <div key={inst} className={i !== insts.length - 1 ? 'border-b border-dashed border-gray-200 pb-1 mb-1' : ''}>
                                         <span className="text-gray-500 mr-1">{inst}:</span>
-                                        {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል</span> : (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : <span className="text-red-700">አልከፈለም</span>}
+                                        {statusRep === 'PAID' ? <span className="text-green-700">ከፍሏል ({amt} ብር)</span> : 
+                                         (statusRep === 'CURRENT_NOT_DUE' || statusRep === 'FUTURE_NOT_DUE') ? <span className="text-yellow-600">ገና አልደረሰም</span> : 
+                                         statusRep === 'SCHOLARSHIP' ? <span className="text-blue-700">ነፃ</span> : 
+                                         <span className="text-red-700">አልከፈለም ({amt} ብር)</span>}
                                      </div>
                                   )
                                })}
